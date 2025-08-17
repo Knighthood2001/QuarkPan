@@ -4,6 +4,10 @@
 一个功能完整的夸克网盘API客户端，支持文件管理、分享转存等功能。
 """
 
+# 初始化日志系统
+from .utils.logger import setup_logger
+setup_logger()
+
 # 主要客户端类
 from .client import QuarkClient, create_client
 

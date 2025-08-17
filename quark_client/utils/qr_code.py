@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import argparse
-import sys
 from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
 import zxingcpp
+
+from .logger import get_logger
 
 ZXING_AVAILABLE = True
 
@@ -109,6 +110,7 @@ def decode_qr_with_fallback(img: np.ndarray) -> Tuple[Optional[str], str]:
 
 
 def print_ascii_qr(text: str):
+    logger = get_logger(__name__)
     try:
         import qrcode
         qr = qrcode.QRCode(border=1)  # 边框小一些，方便在终端放大显示
@@ -116,15 +118,16 @@ def print_ascii_qr(text: str):
         qr.make(fit=True)
         # 反相打印，提升终端显示对比度（部分终端/主题需要关闭 invert）
         qr.print_ascii(invert=True)
-        print("\n(↑ 用手机对准终端二维码扫描即可)")
+        logger.info("用手机对准终端二维码扫描即可")
     except Exception as e:
-        print(f"[WARN] ASCII QR render failed: {e}", file=sys.stderr)
+        logger.warning(f"ASCII QR render failed: {e}")
 
 
 def display_qr_code(qr_image_path: str):
+    logger = get_logger(__name__)
     img = load_image(qr_image_path)
     content, _ = decode_qr_with_fallback(img)
     if content:
         print_ascii_qr(content)
     else:
-        print(f"❌ 无法解码二维码图片: {qr_image_path}")
+        logger.error(f"无法解码二维码图片: {qr_image_path}")

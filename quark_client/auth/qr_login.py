@@ -20,6 +20,7 @@ except ImportError as e:
 from ..config import get_config_dir
 from ..exceptions import AuthenticationError
 from ..utils.qr_code import display_qr_code
+from ..utils.logger import get_logger
 
 
 class QRCodeLogin:
@@ -38,6 +39,7 @@ class QRCodeLogin:
         self.config_dir = get_config_dir()
         self.browser: Optional[Browser] = None
         self.page: Optional[Page] = None
+        self.logger = get_logger(__name__)
 
     async def __aenter__(self):
         """异步上下文管理器入口"""
@@ -80,7 +82,7 @@ class QRCodeLogin:
         Returns:
             (qr_data, qr_image_path) 二维码数据和图片路径
         """
-        print("🌐 正在打开夸克网盘登录页面...")
+        self.logger.info("正在打开夸克网盘登录页面")
 
         # 访问登录页面，增加重试机制
         max_retries = 3
@@ -95,7 +97,7 @@ class QRCodeLogin:
             except Exception as e:
                 if attempt == max_retries - 1:
                     raise e
-                print(f"⚠️ 页面加载失败，重试 {attempt + 1}/{max_retries}...")
+                self.logger.warning(f"页面加载失败，重试 {attempt + 1}/{max_retries}")
                 await asyncio.sleep(2)
 
         # 等待页面稳定
@@ -119,14 +121,14 @@ class QRCodeLogin:
                 login_element = await self.page.wait_for_selector(selector, timeout=3000)
                 if login_element:
                     await login_element.click()
-                    print(f"✅ 已点击登录元素: {selector}")
+                    self.logger.info(f"已点击登录元素: {selector}")
                     await asyncio.sleep(2)
                     break
             except Exception:
                 continue
 
         # 等待二维码出现
-        print("🔍 正在查找二维码...")
+        self.logger.info("正在查找二维码")
         await asyncio.sleep(3)
 
         # 更全面的二维码选择器
@@ -177,47 +179,47 @@ class QRCodeLogin:
                             if box and box['width'] > 50 and box['height'] > 50:
                                 qr_element = element
                                 found_selector = selector
-                                print(f"✅ 找到二维码元素: {selector} (尺寸: {box['width']}x{box['height']})")
+                                self.logger.info(f"找到二维码元素: {selector} (尺寸: {box['width']}x{box['height']})")
                                 break
 
                     if qr_element:
                         break
 
             except Exception as e:
-                print(f"⚠️ 检查选择器 {selector} 时出错: {e}")
+                self.logger.warning(f"检查选择器 {selector} 时出错: {e}")
                 continue
 
         if not qr_element:
             # 尝试截取整个页面来调试
             debug_path = self.config_dir / "debug_page.png"
             await self.page.screenshot(path=str(debug_path))
-            print(f"🔍 已保存调试截图到: {debug_path}")
+            self.logger.debug(f"已保存调试截图到: {debug_path}")
 
             # 获取页面HTML来分析
             html_content = await self.page.content()
             debug_html_path = self.config_dir / "debug_page.html"
             with open(debug_html_path, 'w', encoding='utf-8') as f:
                 f.write(html_content)
-            print(f"🔍 已保存页面HTML到: {debug_html_path}")
+            self.logger.debug(f"已保存页面HTML到: {debug_html_path}")
 
             raise AuthenticationError("未找到二维码元素，请检查调试文件")
 
         # 截取二维码图片
         qr_image_path = self.config_dir / "qr_code.png"
         await qr_element.screenshot(path=str(qr_image_path))
-        print(f"📸 二维码已保存到: {qr_image_path}")
+        self.logger.info(f"二维码已保存到: {qr_image_path}")
 
         # 验证图片是否有效
         try:
             from PIL import Image
             img = Image.open(qr_image_path)
             width, height = img.size
-            print(f"📏 二维码图片尺寸: {width}x{height}")
+            self.logger.info(f"二维码图片尺寸: {width}x{height}")
 
             if width < 50 or height < 50:
-                print("⚠️ 二维码图片尺寸过小，可能提取失败")
+                self.logger.warning("二维码图片尺寸过小，可能提取失败")
         except Exception as e:
-            print(f"⚠️ 验证二维码图片时出错: {e}")
+            self.logger.error(f"验证二维码图片时出错: {e}")
 
         # 尝试获取二维码数据（如果是canvas）
         qr_data = ""
@@ -228,9 +230,9 @@ class QRCodeLogin:
                 qr_data = await qr_element.evaluate(
                     'canvas => canvas.toDataURL()'
                 )
-                print("✅ 已从Canvas获取二维码数据")
+                self.logger.debug("已从Canvas获取二维码数据")
         except Exception as e:
-            print(f"⚠️ 获取Canvas数据时出错: {e}")
+            self.logger.warning(f"获取Canvas数据时出错: {e}")
 
         return qr_data, str(qr_image_path)
 
@@ -250,8 +252,8 @@ class QRCodeLogin:
         Returns:
             是否登录成功
         """
-        print("⏳ 等待扫码登录...")
-        print("💡 请使用夸克APP扫描二维码...")
+        self.logger.info("等待扫码登录")
+        self.logger.info("请使用夸克APP扫描二维码")
         start_time = time.time()
         check_count = 0
 
@@ -259,26 +261,26 @@ class QRCodeLogin:
             try:
                 check_count += 1
                 elapsed = time.time() - start_time
-                print(f"🔍 检查登录状态... ({check_count}) - 已等待 {elapsed:.0f}秒")
+                self.logger.debug(f"检查登录状态... ({check_count}) - 已等待 {elapsed:.0f}秒")
 
                 # 检查page是否有效
                 if not self.page:
-                    print("❌ 页面对象无效")
+                    self.logger.error("页面对象无效")
                     return False
 
                 # 获取当前URL
                 current_url = self.page.url
-                print(f"🔗 当前URL: {current_url}")
+                self.logger.debug(f"当前URL: {current_url}")
 
                 # 更严格的登录检测逻辑
                 if 'pan.quark.cn' in current_url:
                     # 首先检查是否还在登录相关页面
                     if '/login' in current_url or '/passport' in current_url or 'login' in current_url.lower():
-                        print("🔍 仍在登录页面，继续等待...")
+                        self.logger.debug("仍在登录页面，继续等待")
                         await asyncio.sleep(3)
                         continue
 
-                    print("🔍 检测到可能的页面跳转，验证登录状态...")
+                    self.logger.debug("检测到可能的页面跳转，验证登录状态")
 
                     # 等待页面稳定
                     await asyncio.sleep(5)
@@ -286,9 +288,9 @@ class QRCodeLogin:
                     # 检查页面标题
                     try:
                         title = await self.page.title()
-                        print(f"📄 页面标题: {title}")
+                        self.logger.debug(f"页面标题: {title}")
                         if '登录' in title or 'login' in title.lower():
-                            print("⚠️ 页面标题显示仍在登录页面")
+                            self.logger.debug("页面标题显示仍在登录页面")
                             await asyncio.sleep(3)
                             continue
                     except Exception:
@@ -310,17 +312,17 @@ class QRCodeLogin:
                         try:
                             element = await self.page.wait_for_selector(selector, timeout=2000)
                             if element and await element.is_visible():
-                                print(f"✅ 找到登录标志: {description}")
+                                self.logger.debug(f"找到登录标志: {description}")
                                 success_indicators += 1
                         except Exception:
                             continue
 
                     # 需要至少找到2个成功标志才认为登录成功
                     if success_indicators >= 2:
-                        print(f"✅ 找到 {success_indicators} 个登录成功标志，确认登录成功！")
+                        self.logger.info(f"找到 {success_indicators} 个登录成功标志，确认登录成功")
                         return True
                     else:
-                        print(f"⚠️ 只找到 {success_indicators} 个登录标志，可能未完全登录，继续等待...")
+                        self.logger.debug(f"只找到 {success_indicators} 个登录标志，可能未完全登录，继续等待")
                         await asyncio.sleep(3)
                         continue
 
@@ -338,7 +340,7 @@ class QRCodeLogin:
                     for selector in expired_selectors:
                         expired_element = await self.page.query_selector(selector)
                         if expired_element:
-                            print("⚠️ 二维码已过期")
+                            self.logger.warning("二维码已过期")
                             return False
 
                     # 检查是否有扫码成功但未确认的状态
@@ -352,20 +354,20 @@ class QRCodeLogin:
                     for selector in scanned_selectors:
                         scanned_element = await self.page.query_selector(selector)
                         if scanned_element:
-                            print("📱 检测到扫码成功，请在手机上确认登录")
+                            self.logger.info("检测到扫码成功，请在手机上确认登录")
                             break
 
                 except Exception as e:
-                    print(f"⚠️ 检查二维码状态时出错: {e}")
+                    self.logger.warning(f"检查二维码状态时出错: {e}")
 
                 # 等待间隔
                 await asyncio.sleep(3)
 
             except Exception as e:
-                print(f"⚠️ 检查登录状态时出错: {e}")
+                self.logger.error(f"检查登录状态时出错: {e}")
                 await asyncio.sleep(3)
 
-        print("⏰ 登录超时")
+        self.logger.warning("登录超时")
         return False
 
     async def get_cookies(self) -> str:
@@ -397,8 +399,8 @@ class QRCodeLogin:
                 missing_cookies.append(required)
 
         if missing_cookies:
-            print(f"⚠️ 缺少关键Cookie: {missing_cookies}")
-            print("🔍 这可能表示登录未完全成功，尝试等待更长时间...")
+            self.logger.warning(f"缺少关键Cookie: {missing_cookies}")
+            self.logger.info("这可能表示登录未完全成功，尝试等待更长时间")
 
             # 等待更长时间让登录完成
             await asyncio.sleep(10)
@@ -420,9 +422,9 @@ class QRCodeLogin:
             if still_missing:
                 raise AuthenticationError(f"登录失败：缺少必要的Cookie {still_missing}")
             else:
-                print("✅ 延迟后获取到完整Cookie")
+                self.logger.info("延迟后获取到完整Cookie")
 
-        print(f"✅ Cookie验证通过，包含 {len(cookies)} 个cookie")
+        self.logger.info(f"Cookie验证通过，包含 {len(cookies)} 个cookie")
         return cookie_string
 
     async def login(self) -> str:
@@ -443,7 +445,7 @@ class QRCodeLogin:
             if await self.wait_for_login():
                 # 获取cookies
                 cookies = await self.get_cookies()
-                print("🍪 已获取登录凭证")
+                self.logger.info("已获取登录凭证")
                 return cookies
             else:
                 raise AuthenticationError("登录失败或超时")

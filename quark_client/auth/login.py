@@ -16,15 +16,16 @@ except ImportError:
 
 from ..config import get_config_dir
 from ..exceptions import AuthenticationError, ConfigError
+from ..utils.logger import get_logger
 
 
 class QuarkAuth:
     """夸克网盘认证管理器"""
-    
+
     def __init__(self, headless: bool = True, slow_mo: int = 0):
         """
         初始化认证管理器
-        
+
         Args:
             headless: 是否无头模式运行浏览器
             slow_mo: 浏览器操作延迟(毫秒)
@@ -34,6 +35,7 @@ class QuarkAuth:
         self.config_dir = get_config_dir()
         self.cookies_file = self.config_dir / "cookies.json"
         self.browser_data_dir = self.config_dir / "browser_data"
+        self.logger = get_logger(__name__)
         
         # 确保配置目录存在
         self.config_dir.mkdir(parents=True, exist_ok=True)
@@ -130,13 +132,11 @@ class QuarkAuth:
         if not force_relogin:
             saved_cookies = self._load_cookies()
             if saved_cookies:
-                print("✅ 使用已保存的登录信息")
                 return self._cookies_to_string(saved_cookies['cookies'])
 
         # 优先使用二维码登录
         if use_qr:
             try:
-                print("🔲 使用二维码登录...")
                 from .qr_login import qr_login
                 cookies = qr_login(headless=True)
 
@@ -145,12 +145,10 @@ class QuarkAuth:
 
                 # 保存cookies
                 self._save_cookies(cookie_list)
-                print("✅ 二维码登录成功！")
                 return cookies
 
-            except Exception as e:
-                print(f"⚠️ 二维码登录失败: {e}")
-                print("🔄 回退到手动登录模式...")
+            except Exception:
+                pass
 
         # 回退到手动登录
         return self._manual_login()
@@ -171,7 +169,7 @@ class QuarkAuth:
 
     def _manual_login(self) -> str:
         """手动登录模式"""
-        print("🚀 启动浏览器进行手动登录...")
+        self.logger.info("启动浏览器进行手动登录")
 
         try:
             with sync_playwright() as p:
@@ -187,7 +185,7 @@ class QuarkAuth:
                 page = browser.pages[0] if browser.pages else browser.new_page()
 
                 # 访问夸克网盘
-                print("📱 正在打开夸克网盘...")
+                self.logger.info("正在打开夸克网盘")
                 page.goto('https://pan.quark.cn/')
 
                 # 等待用户登录
@@ -207,7 +205,7 @@ class QuarkAuth:
                 # 保存cookies
                 self._save_cookies(cookies)
 
-                print("✅ 登录成功！")
+                self.logger.info("登录成功")
                 return self._cookies_to_string(cookies)
 
         except Exception as e:
@@ -249,10 +247,10 @@ class QuarkAuth:
                 has_required = all(required in cookie_string for required in required_cookies)
 
                 if has_required:
-                    print("✅ 使用已保存的有效Cookie")
+                    self.logger.info("使用已保存的有效Cookie")
                     return cookie_string
                 else:
-                    print("⚠️ 已保存的Cookie缺少必要字段，需要重新登录")
+                    self.logger.warning("已保存的Cookie缺少必要字段，需要重新登录")
 
         # 如果没有有效的cookies或强制重新登录，则执行登录
         return self.login(force_relogin)
@@ -262,9 +260,9 @@ class QuarkAuth:
         try:
             if self.cookies_file.exists():
                 self.cookies_file.unlink()
-            print("✅ 已清除登录信息")
+            self.logger.info("已清除登录信息")
         except Exception as e:
-            print(f"⚠️ 清除登录信息时出错: {e}")
+            self.logger.error(f"清除登录信息时出错: {e}")
     
     def is_logged_in(self) -> bool:
         """检查是否已登录"""
