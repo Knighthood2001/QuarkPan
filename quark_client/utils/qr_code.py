@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import argparse
 from typing import List, Optional, Tuple
 
 import cv2
@@ -74,12 +73,12 @@ def try_decode_opencv(img: np.ndarray) -> Optional[str]:
     try:
         det = cv2.QRCodeDetector()
         # 先试单码
-        data, pts, _ = det.detectAndDecode(img)
+        data, _, _ = det.detectAndDecode(img)
         if data:
             return data.strip()
         # 再试多码
-        datas, pts_list, _ = det.detectAndDecodeMulti(img)
-        if isinstance(datas, (list, tuple)):
+        success, datas, _, _ = det.detectAndDecodeMulti(img)
+        if success and isinstance(datas, (list, tuple)):
             for d in datas:
                 if d:
                     return d.strip()
