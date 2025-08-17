@@ -75,9 +75,12 @@ with QuarkClient() as client:
 ```python
 from quark_client import QuarkAuth
 
-# 手动管理认证
+# 二维码登录（推荐）
 auth = QuarkAuth()
-cookies = auth.login()  # 打开浏览器登录
+cookies = auth.login(use_qr=True)  # 自动提取二维码，扫码登录
+
+# 手动登录（回退方案）
+cookies = auth.login(use_qr=False)  # 打开浏览器手动登录
 
 # 检查登录状态
 if auth.is_logged_in():
