@@ -69,6 +69,26 @@ class QuarkClient:
     def get_file_info(self, file_id: str) -> Dict[str, Any]:
         """获取文件信息"""
         return self.files.get_file_info(file_id)
+
+    def search_files(self, keyword: str, **kwargs) -> Dict[str, Any]:
+        """搜索文件"""
+        return self.files.search_files(keyword, **kwargs)
+
+    def get_download_url(self, file_id: str) -> str:
+        """获取下载链接"""
+        return self.files.get_download_url(file_id)
+
+    def get_storage_info(self) -> Dict[str, Any]:
+        """获取存储空间信息"""
+        return self.files.get_storage_info()
+
+    def list_files_with_details(self, **kwargs) -> Dict[str, Any]:
+        """获取文件列表（增强版）"""
+        return self.files.list_files_with_details(**kwargs)
+
+    def search_files_advanced(self, keyword: str, **kwargs) -> Dict[str, Any]:
+        """高级文件搜索"""
+        return self.files.search_files_advanced(keyword, **kwargs)
     
     def create_folder(self, folder_name: str, parent_id: str = "0") -> Dict[str, Any]:
         """创建文件夹"""

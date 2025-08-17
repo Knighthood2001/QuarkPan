@@ -58,26 +58,40 @@ class FileService:
     def get_file_info(self, file_id: str) -> Dict[str, Any]:
         """
         获取文件详细信息
-        
+
         Args:
             file_id: 文件ID
-            
+
         Returns:
             文件信息字典
         """
+        if not file_id or file_id == "0":
+            raise ValueError("无效的文件ID")
+
         params = {'fids': file_id}
-        
+
         try:
             response = self.client.get('file', params=params)
-            
+
             # 检查响应格式
             if isinstance(response, dict) and 'data' in response:
-                files = response['data']
-                if files and len(files) > 0:
-                    return files[0]
-            
+                data = response['data']
+                if isinstance(data, dict) and 'list' in data:
+                    file_list = data['list']
+                    if file_list and len(file_list) > 0:
+                        # 查找匹配的文件ID
+                        for file_info in file_list:
+                            if file_info.get('fid') == file_id:
+                                return file_info
+
+                        # 如果没有找到精确匹配，返回第一个
+                        return file_list[0]
+                elif isinstance(data, list) and len(data) > 0:
+                    # 兼容旧格式
+                    return data[0]
+
             raise FileNotFoundError(f"文件不存在: {file_id}")
-            
+
         except APIError as e:
             if 'not found' in str(e).lower():
                 raise FileNotFoundError(f"文件不存在: {file_id}")
@@ -233,3 +247,131 @@ class FileService:
         
         response = self.client.get('file/tree', params=params)
         return response
+
+    def get_storage_info(self) -> Dict[str, Any]:
+        """
+        获取存储空间信息
+
+        Returns:
+            存储空间信息
+        """
+        response = self.client.get('capacity')
+        return response
+
+    def list_files_with_details(
+        self,
+        folder_id: str = "0",
+        page: int = 1,
+        size: int = 50,
+        sort_field: str = "file_name",
+        sort_order: str = "asc",
+        include_folders: bool = True,
+        include_files: bool = True
+    ) -> Dict[str, Any]:
+        """
+        获取文件列表（增强版，支持过滤）
+
+        Args:
+            folder_id: 文件夹ID，"0"表示根目录
+            page: 页码，从1开始
+            size: 每页数量
+            sort_field: 排序字段
+            sort_order: 排序方向
+            include_folders: 是否包含文件夹
+            include_files: 是否包含文件
+
+        Returns:
+            包含文件列表的字典
+        """
+        response = self.list_files(folder_id, page, size, sort_field, sort_order)
+
+        # 如果需要过滤，则处理响应数据
+        if not include_folders or not include_files:
+            if isinstance(response, dict) and 'data' in response:
+                file_list = response['data'].get('list', [])
+                filtered_list = []
+
+                for file_info in file_list:
+                    file_type = file_info.get('file_type', 0)
+                    is_folder = file_type == 0
+
+                    if (is_folder and include_folders) or (not is_folder and include_files):
+                        filtered_list.append(file_info)
+
+                response['data']['list'] = filtered_list
+                response['data']['filtered_total'] = len(filtered_list)
+
+        return response
+
+    def search_files_advanced(
+        self,
+        keyword: str,
+        folder_id: str = "0",
+        page: int = 1,
+        size: int = 50,
+        file_types: Optional[List[str]] = None,
+        min_size: Optional[int] = None,
+        max_size: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        高级文件搜索
+
+        Args:
+            keyword: 搜索关键词
+            folder_id: 搜索范围文件夹ID
+            page: 页码
+            size: 每页数量
+            file_types: 文件类型过滤 (如: ['pdf', 'doc', 'txt'])
+            min_size: 最小文件大小（字节）
+            max_size: 最大文件大小（字节）
+
+        Returns:
+            搜索结果
+        """
+        response = self.search_files(keyword, folder_id, page, size)
+
+        # 应用高级过滤器
+        if file_types or min_size is not None or max_size is not None:
+            if isinstance(response, dict) and 'data' in response:
+                file_list = response['data'].get('list', [])
+                filtered_list = []
+
+                for file_info in file_list:
+                    # 文件类型过滤
+                    if file_types:
+                        file_name = file_info.get('file_name', '').lower()
+                        file_ext = file_name.split('.')[-1] if '.' in file_name else ''
+                        if file_ext not in [ft.lower() for ft in file_types]:
+                            continue
+
+                    # 文件大小过滤
+                    file_size = file_info.get('size', 0)
+                    if min_size is not None and file_size < min_size:
+                        continue
+                    if max_size is not None and file_size > max_size:
+                        continue
+
+                    filtered_list.append(file_info)
+
+                response['data']['list'] = filtered_list
+                response['data']['filtered_total'] = len(filtered_list)
+
+        return response
+
+    def get_file_path(self, file_id: str) -> str:
+        """
+        获取文件的完整路径
+
+        Args:
+            file_id: 文件ID
+
+        Returns:
+            文件路径字符串
+        """
+        try:
+            file_info = self.get_file_info(file_id)
+            # 这里需要根据实际API响应结构来获取路径
+            # 可能需要递归获取父文件夹信息来构建完整路径
+            return file_info.get('file_path', file_info.get('file_name', ''))
+        except Exception:
+            return ""
