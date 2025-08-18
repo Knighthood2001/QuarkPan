@@ -243,7 +243,90 @@ def _format_size(size: int) -> str:
         return f"{size / (1024 * 1024 * 1024):.1f} GB"
 
 
-def upload_file(file_path: str, parent_folder_id: str = "0"):
+def _resolve_folder_path(client, folder_path: str, create_dirs: bool = False) -> str:
+    """
+    解析文件夹路径到文件夹ID
+
+    Args:
+        client: QuarkClient实例
+        folder_path: 文件夹路径，如 '/Documents/Photos'
+        create_dirs: 是否自动创建不存在的文件夹
+
+    Returns:
+        文件夹ID
+    """
+    from ...services.name_resolver import NameResolver
+
+    resolver = NameResolver(client.files)
+
+    try:
+        # 尝试解析路径
+        folder_id, file_type = resolver.resolve_path(folder_path)
+
+        if file_type != 'folder':
+            raise ValueError(f"路径 '{folder_path}' 不是文件夹")
+
+        return folder_id
+
+    except Exception as e:
+        if not create_dirs:
+            raise ValueError(f"文件夹路径不存在: {folder_path}。使用 --create-dirs 自动创建")
+
+        # 自动创建文件夹路径
+        return _create_folder_path(client, folder_path)
+
+
+def _create_folder_path(client, folder_path: str) -> str:
+    """
+    递归创建文件夹路径
+
+    Args:
+        client: QuarkClient实例
+        folder_path: 文件夹路径
+
+    Returns:
+        最终文件夹ID
+    """
+    # 处理绝对路径
+    if folder_path.startswith('/'):
+        current_folder_id = "0"  # 根目录
+        folder_path = folder_path[1:]  # 移除开头的/
+    else:
+        current_folder_id = "0"  # 默认从根目录开始
+
+    # 如果路径为空，返回根目录
+    if not folder_path:
+        return current_folder_id
+
+    # 分割路径
+    parts = [p for p in folder_path.split('/') if p]
+
+    from ...services.name_resolver import NameResolver
+    resolver = NameResolver(client.files)
+
+    # 逐级创建文件夹
+    for part in parts:
+        try:
+            # 尝试查找现有文件夹
+            current_folder_id = resolver._find_in_folder(part, current_folder_id, 'folder')
+        except:
+            # 文件夹不存在，创建它
+            print_info(f"创建文件夹: {part}")
+            result = client.create_folder(part, current_folder_id)
+
+            if result and result.get('status') == 200:
+                folder_info = result.get('data', {})
+                current_folder_id = folder_info.get('fid', '')
+                if not current_folder_id:
+                    raise ValueError(f"创建文件夹失败: {part}")
+            else:
+                error_msg = result.get('message', '未知错误')
+                raise ValueError(f"创建文件夹失败: {part} - {error_msg}")
+
+    return current_folder_id
+
+
+def upload_file(file_path: str, parent_folder_id: str = "0", folder_path: str = None, create_dirs: bool = False):
     """上传文件到夸克网盘"""
     import os
     from pathlib import Path
@@ -269,6 +352,15 @@ def upload_file(file_path: str, parent_folder_id: str = "0"):
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
+
+            # 处理文件夹路径参数
+            if folder_path:
+                try:
+                    parent_folder_id = _resolve_folder_path(client, folder_path, create_dirs)
+                    print_info(f"目标文件夹: {folder_path}")
+                except Exception as e:
+                    print_error(f"解析文件夹路径失败: {e}")
+                    raise typer.Exit(1)
 
             # 创建进度条
             with Progress(

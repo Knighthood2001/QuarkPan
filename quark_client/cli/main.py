@@ -101,10 +101,12 @@ def goto(
 @app.command()
 def upload(
     file_path: str = typer.Argument(..., help="要上传的文件路径"),
-    parent_folder_id: str = typer.Option("0", "--parent", "-p", help="父文件夹ID，默认为根目录")
+    parent_folder_id: str = typer.Option("0", "--parent", "-p", help="父文件夹ID，默认为根目录"),
+    folder_path: Optional[str] = typer.Option(None, "--folder", "-f", help="目标文件夹路径，如 '/Documents/Photos'"),
+    create_dirs: bool = typer.Option(False, "--create-dirs", "-c", help="自动创建不存在的文件夹")
 ):
     """上传文件到夸克网盘"""
-    upload_file(file_path, parent_folder_id)
+    upload_file(file_path, parent_folder_id, folder_path, create_dirs)
 
 
 @app.command()
