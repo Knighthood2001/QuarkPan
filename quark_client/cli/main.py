@@ -284,8 +284,10 @@ def info():
   [cyan]quarkpan files rename[/cyan]   - 重命名文件
   
 [bold]搜索功能:[/bold]
-  [cyan]quarkpan search[/cyan]         - 搜索文件
-  [cyan]quarkpan search --type pdf[/cyan] - 搜索PDF文件
+  [cyan]quarkpan search "关键词"[/cyan]  - 基础搜索
+  [cyan]quarkpan search --ext pdf[/cyan] - 按扩展名搜索
+  [cyan]quarkpan search --details[/cyan]  - 详细搜索结果
+  [cyan]quarkpan search --min-size 1MB[/cyan] - 按大小搜索
   
 [bold]示例:[/bold]
   [dim]# 登录[/dim]
@@ -305,6 +307,9 @@ def info():
 
   [dim]# 搜索文件[/dim]
   quarkpan search "文档"
+
+  [dim]# 高级搜索[/dim]
+  quarkpan search --ext pdf --min-size 1MB "课程"
 
   [dim]# 创建文件夹[/dim]
   quarkpan files mkdir "新文件夹"

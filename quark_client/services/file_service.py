@@ -205,27 +205,36 @@ class FileService:
         keyword: str,
         folder_id: str = "0",
         page: int = 1,
-        size: int = 50
+        size: int = 50,
+        sort_field: str = "file_type",
+        sort_order: str = "desc"
     ) -> Dict[str, Any]:
         """
         搜索文件
-        
+
         Args:
             keyword: 搜索关键词
-            folder_id: 搜索范围文件夹ID，"0"表示全盘搜索
+            folder_id: 搜索范围文件夹ID，"0"表示全盘搜索（暂不支持）
             page: 页码
             size: 每页数量
-            
+            sort_field: 排序字段
+            sort_order: 排序方向
+
         Returns:
             搜索结果
         """
         params = {
-            'keyword': keyword,
-            'pdir_fid': folder_id,
+            'q': keyword,
             '_page': page,
-            '_size': size
+            '_size': size,
+            '_fetch_total': 1,
+            '_sort': f'{sort_field}:{sort_order},updated_at:desc',
+            '_is_hl': 1  # 启用高亮
         }
-        
+
+        # 注意：夸克网盘的搜索API似乎不支持文件夹范围限制
+        # folder_id参数暂时不使用
+
         response = self.client.get('file/search', params=params)
         return response
     
@@ -309,54 +318,74 @@ class FileService:
         folder_id: str = "0",
         page: int = 1,
         size: int = 50,
-        file_types: Optional[List[str]] = None,
+        file_extensions: Optional[List[str]] = None,
         min_size: Optional[int] = None,
-        max_size: Optional[int] = None
+        max_size: Optional[int] = None,
+        sort_field: str = "file_type",
+        sort_order: str = "desc"
     ) -> Dict[str, Any]:
         """
-        高级文件搜索
+        高级文件搜索（客户端过滤）
 
         Args:
             keyword: 搜索关键词
-            folder_id: 搜索范围文件夹ID
+            folder_id: 搜索范围文件夹ID（暂不支持）
             page: 页码
             size: 每页数量
-            file_types: 文件类型过滤 (如: ['pdf', 'doc', 'txt'])
+            file_extensions: 文件扩展名过滤 (如: ['pdf', 'doc', 'txt'])
             min_size: 最小文件大小（字节）
             max_size: 最大文件大小（字节）
+            sort_field: 排序字段
+            sort_order: 排序方向
 
         Returns:
             搜索结果
         """
-        response = self.search_files(keyword, folder_id, page, size)
+        # 如果没有过滤条件，直接返回基础搜索结果
+        if not file_extensions and min_size is None and max_size is None:
+            return self.search_files(keyword, folder_id, page, size, sort_field, sort_order)
 
-        # 应用高级过滤器
-        if file_types or min_size is not None or max_size is not None:
-            if isinstance(response, dict) and 'data' in response:
-                file_list = response['data'].get('list', [])
-                filtered_list = []
+        # 获取更多结果用于客户端过滤
+        search_size = max(size * 3, 100)
+        response = self.search_files(keyword, folder_id, 1, search_size, sort_field, sort_order)
 
-                for file_info in file_list:
-                    # 文件类型过滤
-                    if file_types:
-                        file_name = file_info.get('file_name', '').lower()
-                        file_ext = file_name.split('.')[-1] if '.' in file_name else ''
-                        if file_ext not in [ft.lower() for ft in file_types]:
-                            continue
+        # 应用客户端过滤器
+        if isinstance(response, dict) and 'data' in response:
+            file_list = response['data'].get('list', [])
+            filtered_list = []
 
-                    # 文件大小过滤
-                    file_size = file_info.get('size', 0)
-                    if min_size is not None and file_size < min_size:
-                        continue
-                    if max_size is not None and file_size > max_size:
+            for file_info in file_list:
+                # 文件扩展名过滤
+                if file_extensions:
+                    file_name = file_info.get('file_name', '').lower()
+                    file_ext = file_name.split('.')[-1] if '.' in file_name else ''
+                    if file_ext not in [ext.lower() for ext in file_extensions]:
                         continue
 
-                    filtered_list.append(file_info)
+                # 文件大小过滤
+                file_size = file_info.get('size', 0)
+                if min_size is not None and file_size < min_size:
+                    continue
+                if max_size is not None and file_size > max_size:
+                    continue
 
-                response['data']['list'] = filtered_list
-                response['data']['filtered_total'] = len(filtered_list)
+                filtered_list.append(file_info)
+
+            # 应用分页到过滤后的结果
+            start_idx = (page - 1) * size
+            end_idx = start_idx + size
+            paginated_list = filtered_list[start_idx:end_idx]
+
+            response['data']['list'] = paginated_list
+            response['data']['filtered_total'] = len(filtered_list)
+            # 更新metadata中的总数
+            if 'metadata' in response:
+                response['metadata']['_total'] = len(filtered_list)
+                response['metadata']['_count'] = len(paginated_list)
 
         return response
+
+
 
     def get_file_path(self, file_id: str) -> str:
         """

@@ -89,6 +89,8 @@ class QuarkClient:
     def search_files_advanced(self, keyword: str, **kwargs) -> Dict[str, Any]:
         """高级文件搜索"""
         return self.files.search_files_advanced(keyword, **kwargs)
+
+
     
     def create_folder(self, folder_name: str, parent_id: str = "0") -> Dict[str, Any]:
         """创建文件夹"""
