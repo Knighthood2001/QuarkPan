@@ -247,7 +247,7 @@ class QuarkAuth:
                 has_required = all(required in cookie_string for required in required_cookies)
 
                 if has_required:
-                    self.logger.info("使用已保存的有效Cookie")
+                    self.logger.debug("使用已保存的有效Cookie")
                     return cookie_string
                 else:
                     self.logger.warning("已保存的Cookie缺少必要字段，需要重新登录")

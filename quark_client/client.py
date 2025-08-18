@@ -265,7 +265,7 @@ class QuarkClient:
     def get_storage_info(self) -> Dict[str, Any]:
         """
         获取存储空间信息
-        
+
         Returns:
             存储信息
         """
@@ -274,6 +274,25 @@ class QuarkClient:
             return response
         except Exception as e:
             return {'error': str(e)}
+
+    def upload_file(
+        self,
+        file_path: str,
+        parent_folder_id: str = "0",
+        progress_callback: Optional[callable] = None
+    ) -> Dict[str, Any]:
+        """
+        上传文件到夸克网盘
+
+        Args:
+            file_path: 本地文件路径
+            parent_folder_id: 父文件夹ID，默认为根目录
+            progress_callback: 进度回调函数
+
+        Returns:
+            上传结果字典
+        """
+        return self.files.upload_file(file_path, parent_folder_id, progress_callback)
     
     def close(self):
         """关闭客户端"""

@@ -13,8 +13,8 @@ from .commands.auth import auth_app
 
 from .commands.search import search_app
 from .commands.download import download_app
-from .commands.basic_fileops import create_folder, delete_files, rename_file, file_info, get_download_link, browse_folder, goto_folder
-from .commands.upload import upload_app
+from .commands.basic_fileops import create_folder, delete_files, rename_file, file_info, get_download_link, browse_folder, goto_folder, upload_file
+
 from .interactive import start_interactive
 from .utils import get_client, format_file_size, format_timestamp, get_folder_name_by_id
 
@@ -32,7 +32,7 @@ app.add_typer(auth_app, name="auth", help="🔐 认证管理")
 app.add_typer(search_app, name="search", help="🔍 文件搜索")
 app.add_typer(download_app, name="download", help="📥 文件下载")
 
-app.add_typer(upload_app, name="upload", help="📤 文件上传")
+
 
 console = Console()
 
@@ -96,6 +96,15 @@ def goto(
 ):
     """智能进入文件夹"""
     goto_folder(target, current_folder)
+
+
+@app.command()
+def upload(
+    file_path: str = typer.Argument(..., help="要上传的文件路径"),
+    parent_folder_id: str = typer.Option("0", "--parent", "-p", help="父文件夹ID，默认为根目录")
+):
+    """上传文件到夸克网盘"""
+    upload_file(file_path, parent_folder_id)
 
 
 @app.command()
@@ -379,9 +388,7 @@ def info():
   [cyan]quarkpan rename <path> <name>[/cyan] - 重命名文件/文件夹
 
 [bold]文件上传:[/bold]
-  [cyan]quarkpan upload file <file_path>[/cyan] - 上传文件（开发中）
-  [cyan]quarkpan upload folder <folder_path>[/cyan] - 上传文件夹（开发中）
-  [cyan]quarkpan upload info[/cyan] - 上传说明
+  [cyan]quarkpan upload <file_path>[/cyan] - 上传文件
   
 [bold]示例:[/bold]
   [dim]# 登录[/dim]
@@ -412,6 +419,9 @@ def info():
   quarkpan mkdir "我的文档"
   quarkpan rm "文件名.txt"
   quarkpan rename "旧名称" "新名称"
+
+  [dim]# 上传文件[/dim]
+  quarkpan upload "document.pdf"
 
   [dim]# 获取文件信息[/dim]
   quarkpan fileinfo 0d51b7344d894d20a671a5c567383749

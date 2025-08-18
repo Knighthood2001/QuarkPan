@@ -152,10 +152,12 @@ class QuarkAPIClient:
             elif response.status_code == 403:
                 raise AuthenticationError("访问被拒绝，可能是Cookie过期")
             elif response.status_code >= 400:
-                raise APIError(
-                    f"HTTP错误: {response.status_code}",
-                    status_code=response.status_code
-                )
+                try:
+                    error_data = response.json()
+                    error_msg = f"HTTP错误: {response.status_code}, 响应: {error_data}"
+                except:
+                    error_msg = f"HTTP错误: {response.status_code}, 响应: {response.text}"
+                raise APIError(error_msg, status_code=response.status_code)
             
             # 解析JSON响应
             try:

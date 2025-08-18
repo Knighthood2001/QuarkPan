@@ -241,3 +241,65 @@ def _format_size(size: int) -> str:
         return f"{size / (1024 * 1024):.1f} MB"
     else:
         return f"{size / (1024 * 1024 * 1024):.1f} GB"
+
+
+def upload_file(file_path: str, parent_folder_id: str = "0"):
+    """上传文件到夸克网盘"""
+    import os
+    from pathlib import Path
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn
+    from rich.console import Console
+
+    console = Console()
+
+    try:
+        file_path_obj = Path(file_path)
+        if not file_path_obj.exists():
+            print_error(f"文件不存在: {file_path}")
+            raise typer.Exit(1)
+
+        if not file_path_obj.is_file():
+            print_error(f"路径不是文件: {file_path}")
+            raise typer.Exit(1)
+
+        file_size = file_path_obj.stat().st_size
+        print_info(f"上传 {file_path_obj.name} ({_format_size(file_size)})")
+
+        with get_client() as client:
+            if not client.is_logged_in():
+                print_error("未登录，请先使用 quarkpan auth login 登录")
+                raise typer.Exit(1)
+
+            # 创建进度条
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeRemainingColumn(),
+                console=console
+            ) as progress:
+
+                task = progress.add_task("上传中...", total=100)
+
+                def progress_callback(percent: int, message: str):
+                    progress.update(task, completed=percent, description=message)
+
+                # 开始上传
+                result = client.upload_file(
+                    file_path=str(file_path),
+                    parent_folder_id=parent_folder_id,
+                    progress_callback=progress_callback
+                )
+
+            # 上传完成后，在进度条外显示结果
+            if result.get('status') == 'success':
+                md5_info = f" MD5: {result.get('md5', 'N/A')}" if console.is_terminal else ""
+                print_success(f"✅ 上传成功{md5_info}")
+            else:
+                print_error("上传失败")
+                raise typer.Exit(1)
+
+    except Exception as e:
+        handle_api_error(e, "上传文件")
+        raise typer.Exit(1)
