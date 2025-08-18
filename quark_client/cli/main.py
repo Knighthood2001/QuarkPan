@@ -13,6 +13,9 @@ from .commands.auth import auth_app
 from .commands.files import files_app
 from .commands.search import search_app
 from .commands.download import download_app
+from .commands.fileops import fileops_app
+from .commands.upload import upload_app
+from .interactive import start_interactive
 from .utils import get_client, format_file_size, format_timestamp, get_folder_name_by_id
 
 # 创建主应用
@@ -28,8 +31,16 @@ app.add_typer(auth_app, name="auth", help="🔐 认证管理")
 app.add_typer(files_app, name="files", help="📁 文件管理")
 app.add_typer(search_app, name="search", help="🔍 文件搜索")
 app.add_typer(download_app, name="download", help="📥 文件下载")
+app.add_typer(fileops_app, name="fileops", help="📁 文件操作")
+app.add_typer(upload_app, name="upload", help="📤 文件上传")
 
 console = Console()
+
+
+@app.command()
+def interactive():
+    """启动交互式模式"""
+    start_interactive()
 
 
 @app.command()
@@ -270,6 +281,7 @@ def info():
 [bold blue]QuarkPan CLI - 夸克网盘命令行工具[/bold blue]
 
 [bold]主要命令:[/bold]
+  [cyan]quarkpan interactive[/cyan]    - 启动交互式模式 🌟
   [cyan]quarkpan auth login[/cyan]     - 登录夸克网盘
   [cyan]quarkpan auth logout[/cyan]    - 登出
   [cyan]quarkpan status[/cyan]         - 显示状态信息
@@ -296,6 +308,17 @@ def info():
   [cyan]quarkpan download files <file_id>...[/cyan] - 批量下载文件
   [cyan]quarkpan download folder <folder_id>[/cyan] - 下载文件夹
   [cyan]quarkpan download info[/cyan] - 下载说明
+
+[bold]文件操作:[/bold]
+  [cyan]quarkpan fileops mkdir <name>[/cyan] - 创建文件夹
+  [cyan]quarkpan fileops rm <file_id>...[/cyan] - 删除文件/文件夹
+  [cyan]quarkpan fileops mv <file_id>... -t <target>[/cyan] - 移动文件
+  [cyan]quarkpan fileops rename <file_id> <name>[/cyan] - 重命名
+
+[bold]文件上传:[/bold]
+  [cyan]quarkpan upload file <file_path>[/cyan] - 上传文件（开发中）
+  [cyan]quarkpan upload folder <folder_path>[/cyan] - 上传文件夹（开发中）
+  [cyan]quarkpan upload info[/cyan] - 上传说明
   
 [bold]示例:[/bold]
   [dim]# 登录[/dim]
@@ -321,6 +344,9 @@ def info():
 
   [dim]# 下载文件[/dim]
   quarkpan download file 0d51b7344d894d20a671a5c567383749
+
+  [dim]# 文件操作[/dim]
+  quarkpan fileops mkdir "我的文档"
 
   [dim]# 创建文件夹[/dim]
   quarkpan files mkdir "新文件夹"

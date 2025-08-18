@@ -117,8 +117,15 @@ class FileService:
             'dir_init_lock': False,
             'dir_path': ''
         }
-        
-        response = self.client.post('file', json_data=data)
+
+        # 添加查询参数
+        params = {
+            'pr': 'ucpro',
+            'fr': 'pc',
+            'uc_param_str': ''
+        }
+
+        response = self.client.post('file', json_data=data, params=params)
         return response
     
     def delete_files(self, file_ids: List[str]) -> Dict[str, Any]:
@@ -136,8 +143,15 @@ class FileService:
             'filelist': file_ids,
             'exclude_fids': []
         }
-        
-        response = self.client.post('file/delete', json_data=data)
+
+        # 添加查询参数
+        params = {
+            'pr': 'ucpro',
+            'fr': 'pc',
+            'uc_param_str': ''
+        }
+
+        response = self.client.post('file/delete', json_data=data, params=params)
         return response
     
     def move_files(self, file_ids: List[str], target_folder_id: str) -> Dict[str, Any]:
@@ -151,14 +165,22 @@ class FileService:
         Returns:
             移动结果
         """
+        # 尝试不同的API参数格式
         data = {
             'action_type': 1,  # 移动操作
             'filelist': file_ids,
             'target_fid': target_folder_id,
             'exclude_fids': []
         }
-        
-        response = self.client.post('file/move', json_data=data)
+
+        # 添加查询参数
+        params = {
+            'pr': 'ucpro',
+            'fr': 'pc',
+            'uc_param_str': ''
+        }
+
+        response = self.client.post('file/move', json_data=data, params=params)
         return response
     
     def rename_file(self, file_id: str, new_name: str) -> Dict[str, Any]:
@@ -176,8 +198,15 @@ class FileService:
             'fid': file_id,
             'file_name': new_name
         }
-        
-        response = self.client.post('file/rename', json_data=data)
+
+        # 添加查询参数
+        params = {
+            'pr': 'ucpro',
+            'fr': 'pc',
+            'uc_param_str': ''
+        }
+
+        response = self.client.post('file/rename', json_data=data, params=params)
         return response
     
     def get_download_url(self, file_id: str) -> str:
@@ -342,7 +371,13 @@ class FileService:
                             if progress_callback:
                                 progress_callback(downloaded_size, total_size)
         except Exception as e:
-            print(f"方法1失败: {e}")
+            # 第一种方法失败是正常的，静默切换到备用方法
+            if "403" in str(e) or "Forbidden" in str(e):
+                # 403错误是预期的，不显示错误信息
+                pass
+            else:
+                # 其他错误可能需要用户知道
+                print(f"下载方法1遇到问题，正在尝试备用方法...")
             success = False
 
         # 方法2: 如果方法1失败，尝试使用外部httpx客户端

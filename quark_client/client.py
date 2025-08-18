@@ -6,6 +6,7 @@ from typing import Optional, Dict, List, Any
 from .core.api_client import QuarkAPIClient
 from .services.file_service import FileService
 from .services.share_service import ShareService
+from .services.name_resolver import NameResolver
 from .auth import QuarkAuth
 
 
@@ -26,6 +27,7 @@ class QuarkClient:
         # 初始化服务
         self.files = FileService(self.api_client)
         self.shares = ShareService(self.api_client)
+        self.name_resolver = NameResolver(self.files)
         
         # 保存认证信息
         self._auth = None
@@ -89,6 +91,51 @@ class QuarkClient:
     def download_files(self, file_ids: List[str], save_dir: str = "downloads", **kwargs) -> List[str]:
         """批量下载文件"""
         return self.files.download_files(file_ids, save_dir, **kwargs)
+
+    # 基于名称的操作方法
+    def resolve_path(self, path: str, current_folder_id: str = "0") -> tuple:
+        """解析文件路径到ID"""
+        return self.name_resolver.resolve_path(path, current_folder_id)
+
+    def delete_files_by_name(self, paths: List[str], current_folder_id: str = "0") -> Dict[str, Any]:
+        """根据文件名删除文件"""
+        resolved = self.name_resolver.resolve_multiple_paths(paths, current_folder_id)
+        file_ids = [item[0] for item in resolved]
+        return self.delete_files(file_ids)
+
+    def rename_file_by_name(self, old_path: str, new_name: str, current_folder_id: str = "0") -> Dict[str, Any]:
+        """根据文件名重命名文件"""
+        file_id, _ = self.name_resolver.resolve_path(old_path, current_folder_id)
+        return self.rename_file(file_id, new_name)
+
+    def move_files_by_name(self, paths: List[str], target_path: str, current_folder_id: str = "0") -> Dict[str, Any]:
+        """根据文件名移动文件"""
+        # 解析源文件
+        resolved = self.name_resolver.resolve_multiple_paths(paths, current_folder_id)
+        file_ids = [item[0] for item in resolved]
+
+        # 解析目标文件夹
+        target_id, target_type = self.name_resolver.resolve_path(target_path, current_folder_id)
+        if target_type != 'folder':
+            raise ValueError(f"目标路径必须是文件夹: {target_path}")
+
+        return self.move_files(file_ids, target_id)
+
+    def download_file_by_name(self, path: str, save_path: str = None, current_folder_id: str = "0", **kwargs) -> str:
+        """根据文件名下载文件"""
+        file_id, file_type = self.name_resolver.resolve_path(path, current_folder_id)
+        if file_type != 'file':
+            raise ValueError(f"只能下载文件，不能下载文件夹: {path}")
+        return self.download_file(file_id, save_path, **kwargs)
+
+    def get_file_info_by_name(self, path: str, current_folder_id: str = "0") -> Dict[str, Any]:
+        """根据文件名获取文件信息"""
+        file_id, _ = self.name_resolver.resolve_path(path, current_folder_id)
+        return self.get_file_info(file_id)
+
+    def get_real_file_name(self, file_id: str) -> Optional[str]:
+        """获取文件的真实名称（从列表缓存中获取）"""
+        return self.name_resolver.get_real_name(file_id)
 
     def get_storage_info(self) -> Dict[str, Any]:
         """获取存储空间信息"""
