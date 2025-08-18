@@ -12,6 +12,7 @@ from typing import Optional
 from .commands.auth import auth_app
 from .commands.files import files_app
 from .commands.search import search_app
+from .commands.download import download_app
 from .utils import get_client, format_file_size, format_timestamp, get_folder_name_by_id
 
 # 创建主应用
@@ -26,6 +27,7 @@ app = typer.Typer(
 app.add_typer(auth_app, name="auth", help="🔐 认证管理")
 app.add_typer(files_app, name="files", help="📁 文件管理")
 app.add_typer(search_app, name="search", help="🔍 文件搜索")
+app.add_typer(download_app, name="download", help="📥 文件下载")
 
 console = Console()
 
@@ -288,6 +290,12 @@ def info():
   [cyan]quarkpan search --ext pdf[/cyan] - 按扩展名搜索
   [cyan]quarkpan search --details[/cyan]  - 详细搜索结果
   [cyan]quarkpan search --min-size 1MB[/cyan] - 按大小搜索
+
+[bold]下载功能:[/bold]
+  [cyan]quarkpan download file <file_id>[/cyan] - 下载单个文件
+  [cyan]quarkpan download files <file_id>...[/cyan] - 批量下载文件
+  [cyan]quarkpan download folder <folder_id>[/cyan] - 下载文件夹
+  [cyan]quarkpan download info[/cyan] - 下载说明
   
 [bold]示例:[/bold]
   [dim]# 登录[/dim]
@@ -310,6 +318,9 @@ def info():
 
   [dim]# 高级搜索[/dim]
   quarkpan search --ext pdf --min-size 1MB "课程"
+
+  [dim]# 下载文件[/dim]
+  quarkpan download file 0d51b7344d894d20a671a5c567383749
 
   [dim]# 创建文件夹[/dim]
   quarkpan files mkdir "新文件夹"

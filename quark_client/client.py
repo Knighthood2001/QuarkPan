@@ -78,6 +78,18 @@ class QuarkClient:
         """获取下载链接"""
         return self.files.get_download_url(file_id)
 
+    def get_download_urls(self, file_ids: List[str]) -> Dict[str, str]:
+        """批量获取下载链接"""
+        return self.files.get_download_urls(file_ids)
+
+    def download_file(self, file_id: str, save_path: str = None, **kwargs) -> str:
+        """下载文件"""
+        return self.files.download_file(file_id, save_path, **kwargs)
+
+    def download_files(self, file_ids: List[str], save_dir: str = "downloads", **kwargs) -> List[str]:
+        """批量下载文件"""
+        return self.files.download_files(file_ids, save_dir, **kwargs)
+
     def get_storage_info(self) -> Dict[str, Any]:
         """获取存储空间信息"""
         return self.files.get_storage_info()
