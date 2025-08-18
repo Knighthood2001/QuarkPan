@@ -12,10 +12,10 @@ from rich.table import Table
 from rich.panel import Panel
 
 from .utils import print_info, print_error, print_success, print_warning, get_client
-from .commands.files import list_files as cmd_list_files
+
 from .commands.search import do_search
 from .commands.download import download_file as cmd_download_file
-from .commands.fileops import create_folder, delete_files, rename_file
+from .commands.basic_fileops import create_folder, delete_files, rename_file
 
 console = Console()
 
@@ -52,6 +52,7 @@ class InteractiveShell:
             'mkdir': self.cmd_mkdir,
             'rm': self.cmd_remove,
             'del': self.cmd_remove,
+            'delete': self.cmd_remove,
             'rename': self.cmd_rename,
             'mv': self.cmd_rename,
             'info': self.cmd_info,

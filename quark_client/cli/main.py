@@ -7,13 +7,13 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
-from typing import Optional
+from typing import Optional, List
 
 from .commands.auth import auth_app
-from .commands.files import files_app
+
 from .commands.search import search_app
 from .commands.download import download_app
-from .commands.fileops import fileops_app
+from .commands.basic_fileops import create_folder, delete_files, rename_file, file_info, get_download_link, browse_folder, goto_folder
 from .commands.upload import upload_app
 from .interactive import start_interactive
 from .utils import get_client, format_file_size, format_timestamp, get_folder_name_by_id
@@ -28,10 +28,10 @@ app = typer.Typer(
 
 # 添加子命令
 app.add_typer(auth_app, name="auth", help="🔐 认证管理")
-app.add_typer(files_app, name="files", help="📁 文件管理")
+
 app.add_typer(search_app, name="search", help="🔍 文件搜索")
 app.add_typer(download_app, name="download", help="📥 文件下载")
-app.add_typer(fileops_app, name="fileops", help="📁 文件操作")
+
 app.add_typer(upload_app, name="upload", help="📤 文件上传")
 
 console = Console()
@@ -41,6 +41,61 @@ console = Console()
 def interactive():
     """启动交互式模式"""
     start_interactive()
+
+
+# 一级文件操作命令
+@app.command()
+def mkdir(
+    folder_name: str = typer.Argument(..., help="文件夹名称"),
+    parent_id: str = typer.Option("0", "--parent", "-p", help="父文件夹ID，默认为根目录")
+):
+    """创建文件夹"""
+    create_folder(folder_name, parent_id)
+
+
+@app.command()
+def rm(
+    paths: List[str] = typer.Argument(..., help="要删除的文件/文件夹路径或ID列表"),
+    force: bool = typer.Option(False, "--force", "-f", help="强制删除，不询问确认"),
+    use_id: bool = typer.Option(False, "--id", help="使用文件ID而不是路径")
+):
+    """删除文件或文件夹"""
+    delete_files(paths, force, use_id)
+
+
+@app.command()
+def rename(
+    path: str = typer.Argument(..., help="要重命名的文件/文件夹路径或ID"),
+    new_name: str = typer.Argument(..., help="新名称"),
+    use_id: bool = typer.Option(False, "--id", help="使用文件ID而不是路径")
+):
+    """重命名文件或文件夹"""
+    rename_file(path, new_name, use_id)
+
+
+@app.command()
+def fileinfo(
+    file_id: str = typer.Argument(..., help="文件/文件夹ID")
+):
+    """获取文件详细信息"""
+    file_info(file_id)
+
+
+@app.command()
+def browse(
+    folder_id: str = typer.Argument("0", help="文件夹ID，默认为根目录")
+):
+    """交互式文件夹浏览"""
+    browse_folder(folder_id)
+
+
+@app.command()
+def goto(
+    target: str = typer.Argument(..., help="目标文件夹（ID、名称或序号）"),
+    current_folder: str = typer.Option("0", "--from", help="当前文件夹ID")
+):
+    """智能进入文件夹"""
+    goto_folder(target, current_folder)
 
 
 @app.command()
@@ -113,22 +168,36 @@ def ls(
     size: int = typer.Option(20, "--size", "-s", help="每页数量"),
     sort_field: str = typer.Option("file_name", "--sort", help="排序字段"),
     sort_order: str = typer.Option("asc", "--order", help="排序方向 (asc/desc)"),
-    show_details: bool = typer.Option(False, "--details", "-d", help="显示详细信息")
+    show_details: bool = typer.Option(False, "--details", "-d", help="显示详细信息"),
+    folders_only: bool = typer.Option(False, "--folders-only", help="只显示文件夹"),
+    files_only: bool = typer.Option(False, "--files-only", help="只显示文件")
 ):
-    """快速列出文件 (等同于 files list)"""
+    """列出文件和文件夹"""
     try:
         with get_client() as client:
             if not client.is_logged_in():
                 rprint("[red]❌ 未登录，请先使用 quarkpan auth login 登录[/red]")
                 raise typer.Exit(1)
             
-            files = client.list_files(
-                folder_id=folder_id,
-                page=page,
-                size=size,
-                sort_field=sort_field,
-                sort_order=sort_order
-            )
+            # 根据过滤选项选择API调用
+            if folders_only or files_only:
+                files = client.list_files_with_details(
+                    folder_id=folder_id,
+                    page=page,
+                    size=size,
+                    sort_field=sort_field,
+                    sort_order=sort_order,
+                    include_folders=not files_only,
+                    include_files=not folders_only
+                )
+            else:
+                files = client.list_files(
+                    folder_id=folder_id,
+                    page=page,
+                    size=size,
+                    sort_field=sort_field,
+                    sort_order=sort_order
+                )
             
             if not files or 'data' not in files:
                 rprint("[red]❌ 无法获取文件列表[/red]")
@@ -285,17 +354,12 @@ def info():
   [cyan]quarkpan auth login[/cyan]     - 登录夸克网盘
   [cyan]quarkpan auth logout[/cyan]    - 登出
   [cyan]quarkpan status[/cyan]         - 显示状态信息
-  [cyan]quarkpan ls[/cyan]             - 快速列出文件
+  [cyan]quarkpan ls[/cyan]             - 列出文件和文件夹
   
-[bold]文件管理:[/bold]
-  [cyan]quarkpan files list[/cyan]     - 列出文件
-  [cyan]quarkpan files browse[/cyan]   - 交互式浏览文件夹
-  [cyan]quarkpan files goto[/cyan]     - 智能进入文件夹
-  [cyan]quarkpan files pwd[/cyan]      - 显示文件夹信息
-  [cyan]quarkpan files mkdir[/cyan]    - 创建文件夹
-  [cyan]quarkpan files rm[/cyan]       - 删除文件
-  [cyan]quarkpan files mv[/cyan]       - 移动文件
-  [cyan]quarkpan files rename[/cyan]   - 重命名文件
+[bold]高级功能:[/bold]
+  [cyan]quarkpan browse[/cyan]         - 交互式浏览文件夹
+  [cyan]quarkpan goto <target>[/cyan]  - 智能进入文件夹
+  [cyan]quarkpan fileinfo <id>[/cyan]  - 获取文件详细信息
   
 [bold]搜索功能:[/bold]
   [cyan]quarkpan search "关键词"[/cyan]  - 基础搜索
@@ -310,10 +374,9 @@ def info():
   [cyan]quarkpan download info[/cyan] - 下载说明
 
 [bold]文件操作:[/bold]
-  [cyan]quarkpan fileops mkdir <name>[/cyan] - 创建文件夹
-  [cyan]quarkpan fileops rm <file_id>...[/cyan] - 删除文件/文件夹
-  [cyan]quarkpan fileops mv <file_id>... -t <target>[/cyan] - 移动文件
-  [cyan]quarkpan fileops rename <file_id> <name>[/cyan] - 重命名
+  [cyan]quarkpan mkdir <name>[/cyan] - 创建文件夹
+  [cyan]quarkpan rm <path>...[/cyan] - 删除文件/文件夹
+  [cyan]quarkpan rename <path> <name>[/cyan] - 重命名文件/文件夹
 
 [bold]文件上传:[/bold]
   [cyan]quarkpan upload file <file_path>[/cyan] - 上传文件（开发中）
@@ -331,10 +394,10 @@ def info():
   quarkpan ls --details
 
   [dim]# 交互式浏览[/dim]
-  quarkpan files browse
+  quarkpan browse
 
   [dim]# 智能进入文件夹[/dim]
-  quarkpan files goto "分享"
+  quarkpan goto "分享"
 
   [dim]# 搜索文件[/dim]
   quarkpan search "文档"
@@ -346,10 +409,12 @@ def info():
   quarkpan download file 0d51b7344d894d20a671a5c567383749
 
   [dim]# 文件操作[/dim]
-  quarkpan fileops mkdir "我的文档"
+  quarkpan mkdir "我的文档"
+  quarkpan rm "文件名.txt"
+  quarkpan rename "旧名称" "新名称"
 
-  [dim]# 创建文件夹[/dim]
-  quarkpan files mkdir "新文件夹"
+  [dim]# 获取文件信息[/dim]
+  quarkpan fileinfo 0d51b7344d894d20a671a5c567383749
 
 更多帮助请使用: [cyan]quarkpan COMMAND --help[/cyan]
 """)
