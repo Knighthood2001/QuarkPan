@@ -2,7 +2,7 @@
 夸克网盘客户端主类
 """
 
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 from .core.api_client import QuarkAPIClient
 from .services.file_service import FileService
 from .services.share_service import ShareService
@@ -293,6 +293,74 @@ class QuarkClient:
             上传结果字典
         """
         return self.files.upload_file(file_path, parent_folder_id, progress_callback)
+
+    # 分享相关方法
+    def create_share(
+        self,
+        file_ids: List[str],
+        title: str = "",
+        expire_days: int = 0,
+        password: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        创建分享链接
+
+        Args:
+            file_ids: 文件ID列表
+            title: 分享标题
+            expire_days: 过期天数，0表示永久
+            password: 提取码，None表示无密码
+
+        Returns:
+            分享信息，包含分享链接
+        """
+        return self.shares.create_share(file_ids, title, expire_days, password)
+
+    def parse_share_url(self, share_url: str) -> Tuple[str, Optional[str]]:
+        """
+        解析分享链接
+
+        Args:
+            share_url: 分享链接
+
+        Returns:
+            (share_id, password) 元组
+        """
+        return self.shares.parse_share_url(share_url)
+
+    def save_shared_files(
+        self,
+        share_url: str,
+        target_folder_id: str = "0",
+        target_folder_name: Optional[str] = None,
+        file_filter: Optional[callable] = None
+    ) -> Dict[str, Any]:
+        """
+        转存分享的文件
+
+        Args:
+            share_url: 分享链接
+            target_folder_id: 目标文件夹ID
+            target_folder_name: 目标文件夹名称
+            file_filter: 文件过滤函数
+
+        Returns:
+            转存结果
+        """
+        return self.shares.parse_and_save(share_url, target_folder_id, target_folder_name, file_filter)
+
+    def get_my_shares(self, page: int = 1, size: int = 50) -> Dict[str, Any]:
+        """
+        获取我的分享列表
+
+        Args:
+            page: 页码
+            size: 每页数量
+
+        Returns:
+            分享列表
+        """
+        return self.shares.get_my_shares(page, size)
     
     def close(self):
         """关闭客户端"""

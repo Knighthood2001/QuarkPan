@@ -26,33 +26,114 @@ class ShareService:
     def create_share(
         self,
         file_ids: List[str],
-        expire_days: int = 7,
-        password: Optional[str] = None,
-        download_limit: int = 0
+        title: str = "",
+        expire_days: int = 0,
+        password: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         创建分享链接
-        
+
         Args:
             file_ids: 文件ID列表
+            title: 分享标题
             expire_days: 过期天数，0表示永久
             password: 提取码，None表示无密码
-            download_limit: 下载次数限制，0表示无限制
-            
+
         Returns:
-            分享信息
+            分享信息，包含分享链接
         """
+        import time
+
+        # 第一步：创建分享任务
         data = {
             'fid_list': file_ids,
-            'title': '',
-            'url_type': 1,
-            'expired_type': 1 if expire_days > 0 else 0,
-            'expired_at': expire_days * 24 * 3600 if expire_days > 0 else 0,
-            'passcode': password or '',
-            'download_limit_count': download_limit
+            'title': title,
+            'url_type': 1,  # 公开链接
+            'expired_type': 1 if expire_days == 0 else 0  # 1=永久，0=有期限
         }
-        
+
+        # 如果设置了密码，添加密码字段
+        if password:
+            data['passcode'] = password
+
         response = self.client.post('share', json_data=data)
+
+        if not response.get('status') == 200:
+            raise APIError(f"创建分享失败: {response.get('message', '未知错误')}")
+
+        # 获取任务ID
+        task_id = response.get('data', {}).get('task_id')
+        if not task_id:
+            raise APIError("无法获取分享任务ID")
+
+        # 第二步：轮询任务状态，等待分享创建完成
+        max_retries = 10
+        retry_count = 0
+
+        while retry_count < max_retries:
+            task_response = self.client.get(
+                'task',
+                params={
+                    'task_id': task_id,
+                    'retry_index': retry_count
+                }
+            )
+
+            if task_response.get('status') == 200:
+                task_data = task_response.get('data', {})
+
+                # 检查任务状态
+                if task_data.get('status') == 2:  # 任务完成
+                    share_id = task_data.get('share_id')
+                    if share_id:
+                        # 第三步：获取完整的分享信息
+                        return self._get_share_details(share_id)
+                elif task_data.get('status') == 3:  # 任务失败
+                    raise APIError(f"分享创建失败: {task_data.get('message', '任务失败')}")
+
+            retry_count += 1
+            time.sleep(1)  # 等待1秒后重试
+
+        raise APIError("分享创建超时")
+
+    def _get_share_details(self, share_id: str) -> Dict[str, Any]:
+        """
+        获取分享详细信息，包括分享链接
+
+        Args:
+            share_id: 分享ID
+
+        Returns:
+            完整的分享信息
+        """
+        data = {'share_id': share_id}
+
+        response = self.client.post('share/password', json_data=data)
+
+        if not response.get('status') == 200:
+            raise APIError(f"获取分享详情失败: {response.get('message', '未知错误')}")
+
+        return response.get('data', {})
+
+    def get_my_shares(self, page: int = 1, size: int = 50) -> Dict[str, Any]:
+        """
+        获取我的分享列表
+
+        Args:
+            page: 页码
+            size: 每页数量
+
+        Returns:
+            分享列表
+        """
+        params = {
+            'page': page,
+            'size': size,
+            'order': 'created_at',
+            'asc': 0  # 降序
+        }
+
+        response = self.client.get('share/list', params=params)
         return response
     
     def parse_share_url(self, share_url: str) -> Tuple[str, Optional[str]]:

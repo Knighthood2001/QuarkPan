@@ -15,7 +15,8 @@ from .utils import print_info, print_error, print_success, print_warning, get_cl
 
 from .commands.search import do_search
 from .commands.download import download_file as cmd_download_file
-from .commands.basic_fileops import create_folder, delete_files, rename_file
+from .commands.basic_fileops import create_folder, delete_files, rename_file, upload_file
+from .commands.share_commands import create_share
 
 console = Console()
 
@@ -58,6 +59,9 @@ class InteractiveShell:
             'info': self.cmd_info,
             'clear': self.cmd_clear,
             'cls': self.cmd_clear,
+            'upload': self.cmd_upload,
+            'up': self.cmd_upload,
+            'share': self.cmd_share,
         }
     
     def start(self):
@@ -155,6 +159,8 @@ class InteractiveShell:
             ("rm <path>...", "del", "删除文件/文件夹"),
             ("rename <old> <new>", "mv", "重命名文件/文件夹"),
             ("info <path>", "", "显示文件信息"),
+            ("upload <file>", "up", "上传文件到当前目录"),
+            ("share <path>", "", "创建分享链接"),
             ("clear", "cls", "清屏"),
         ]
         
@@ -539,6 +545,120 @@ class InteractiveShell:
             path_parts.append(name)
 
         return "/" + "/".join(path_parts)
+
+    def cmd_upload(self, args: List[str]):
+        """上传文件"""
+        if not args:
+            print_error("用法: upload <本地文件路径>")
+            print_info("示例: upload /path/to/file.txt")
+            return
+
+        local_file_path = args[0]
+
+        # 检查文件是否存在
+        if not os.path.exists(local_file_path):
+            print_error(f"文件不存在: {local_file_path}")
+            return
+
+        if not os.path.isfile(local_file_path):
+            print_error(f"路径不是文件: {local_file_path}")
+            return
+
+        try:
+            print_info(f"上传文件到当前目录: {self.current_folder_name}")
+
+            # 调用上传函数，上传到当前目录
+            upload_file(
+                file_path=local_file_path,
+                parent_folder_id=self.current_folder_id,
+                folder_path=None,
+                create_dirs=False
+            )
+
+        except Exception as e:
+            print_error(f"上传失败: {e}")
+
+    def cmd_share(self, args: List[str]):
+        """创建分享链接"""
+        if not args:
+            print_error("用法: share <文件/文件夹路径> [选项]")
+            print_info("示例: share 文件.txt")
+            print_info("示例: share 文件夹/")
+            print_info("选项:")
+            print_info("  --title <标题>     设置分享标题")
+            print_info("  --password <密码>  设置提取码")
+            print_info("  --expire <天数>    设置过期天数(0=永久)")
+            return
+
+        file_path = args[0]
+
+        # 解析选项
+        title = ""
+        password = None
+        expire_days = 0
+
+        i = 1
+        while i < len(args):
+            if args[i] == "--title" and i + 1 < len(args):
+                title = args[i + 1]
+                i += 2
+            elif args[i] == "--password" and i + 1 < len(args):
+                password = args[i + 1]
+                i += 2
+            elif args[i] == "--expire" and i + 1 < len(args):
+                try:
+                    expire_days = int(args[i + 1])
+                except ValueError:
+                    print_error("过期天数必须是数字")
+                    return
+                i += 2
+            else:
+                i += 1
+
+        try:
+            # 解析文件路径到文件ID
+            file_id = self._resolve_path_to_id(file_path)
+            if not file_id:
+                print_error(f"无法找到文件: {file_path}")
+                return
+
+            print_info("创建分享链接...")
+
+            # 调用分享函数
+            create_share(
+                file_paths=[file_id],
+                title=title,
+                expire_days=expire_days,
+                password=password,
+                use_id=True
+            )
+
+        except Exception as e:
+            print_error(f"创建分享失败: {e}")
+
+    def _resolve_path_to_id(self, path: str) -> Optional[str]:
+        """解析路径到文件ID"""
+        try:
+            from ..services.name_resolver import NameResolver
+            resolver = NameResolver(self.client.files)
+
+            # 如果是绝对路径，从根目录开始解析
+            if path.startswith('/'):
+                file_id, _ = resolver.resolve_path(path)
+            else:
+                # 相对路径，从当前目录开始解析
+                if self.current_folder_id == "0":
+                    # 在根目录
+                    file_id, _ = resolver.resolve_path(f"/{path}")
+                else:
+                    # 在子目录，需要构造完整路径
+                    current_path = self._get_current_path()
+                    full_path = f"{current_path}/{path}".replace("//", "/")
+                    file_id, _ = resolver.resolve_path(full_path)
+
+            return file_id
+        except Exception:
+            return None
 
 
 def start_interactive():

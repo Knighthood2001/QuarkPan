@@ -14,6 +14,7 @@ from .commands.auth import auth_app
 from .commands.search import search_app
 from .commands.download import download_app
 from .commands.basic_fileops import create_folder, delete_files, rename_file, file_info, get_download_link, browse_folder, goto_folder, upload_file
+from .commands.share_commands import create_share, list_my_shares, save_share
 
 from .interactive import start_interactive
 from .utils import get_client, format_file_size, format_timestamp, get_folder_name_by_id
@@ -107,6 +108,50 @@ def upload(
 ):
     """上传文件到夸克网盘"""
     upload_file(file_path, parent_folder_id, folder_path, create_dirs)
+
+
+# @app.command()
+# def upload_dir(
+#     folder_path: str = typer.Argument(..., help="要上传的文件夹路径"),
+#     parent_folder_id: str = typer.Option("0", "--parent", "-p", help="父文件夹ID，默认为根目录"),
+#     target_folder_path: Optional[str] = typer.Option(None, "--folder", "-f", help="目标文件夹路径，如 '/Documents/Photos'"),
+#     create_dirs: bool = typer.Option(True, "--create-dirs/--no-create-dirs", help="自动创建不存在的文件夹（默认开启）"),
+#     exclude_patterns: List[str] = typer.Option([], "--exclude", help="排除的文件模式，如 '*.tmp'"),
+#     max_workers: int = typer.Option(3, "--workers", help="并发上传数量（1-10）")
+# ):
+#     """上传文件夹到夸克网盘"""
+#     upload_folder(folder_path, parent_folder_id, target_folder_path, create_dirs, exclude_patterns, max_workers)
+
+
+@app.command()
+def share(
+    file_paths: List[str] = typer.Argument(..., help="要分享的文件/文件夹路径或ID"),
+    title: str = typer.Option("", "--title", "-t", help="分享标题"),
+    expire_days: int = typer.Option(0, "--expire", "-e", help="过期天数，0表示永久"),
+    password: Optional[str] = typer.Option(None, "--password", "-p", help="提取码"),
+    use_id: bool = typer.Option(False, "--use-id", help="使用文件ID而不是路径")
+):
+    """创建分享链接"""
+    create_share(file_paths, title, expire_days, password, use_id)
+
+
+# @app.command()
+# def shares(
+#     page: int = typer.Option(1, "--page", help="页码"),
+#     size: int = typer.Option(20, "--size", help="每页数量")
+# ):
+#     """列出我的分享"""
+#     list_my_shares(page, size)
+
+
+@app.command()
+def save(
+    share_url: str = typer.Argument(..., help="分享链接"),
+    target_folder: str = typer.Option("/", "--folder", "-f", help="目标文件夹路径"),
+    create_folder: bool = typer.Option(True, "--create-folder/--no-create-folder", help="自动创建目标文件夹")
+):
+    """转存分享文件"""
+    save_share(share_url, target_folder, create_folder)
 
 
 @app.command()
