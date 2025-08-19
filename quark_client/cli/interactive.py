@@ -16,7 +16,7 @@ from .utils import print_info, print_error, print_success, print_warning, get_cl
 from .commands.search import do_search
 from .commands.download import download_file as cmd_download_file
 from .commands.basic_fileops import create_folder, delete_files, rename_file, upload_file
-from .commands.share_commands import create_share
+from .commands.share_commands import create_share, list_my_shares
 
 console = Console()
 
@@ -62,6 +62,7 @@ class InteractiveShell:
             'upload': self.cmd_upload,
             'up': self.cmd_upload,
             'share': self.cmd_share,
+            'shares': self.cmd_shares,
         }
     
     def start(self):
@@ -161,6 +162,7 @@ class InteractiveShell:
             ("info <path>", "", "显示文件信息"),
             ("upload <file>", "up", "上传文件到当前目录"),
             ("share <path>", "", "创建分享链接"),
+            ("shares", "", "查看我的分享列表"),
             ("clear", "cls", "清屏"),
         ]
         
@@ -635,6 +637,40 @@ class InteractiveShell:
 
         except Exception as e:
             print_error(f"创建分享失败: {e}")
+
+    def cmd_shares(self, args: List[str]):
+        """查看我的分享列表"""
+        # 解析参数
+        page = 1
+        size = 20
+
+        i = 0
+        while i < len(args):
+            if args[i] == "--page" and i + 1 < len(args):
+                try:
+                    page = int(args[i + 1])
+                except ValueError:
+                    print_error("页码必须是数字")
+                    return
+                i += 2
+            elif args[i] == "--size" and i + 1 < len(args):
+                try:
+                    size = int(args[i + 1])
+                except ValueError:
+                    print_error("每页数量必须是数字")
+                    return
+                i += 2
+            else:
+                i += 1
+
+        try:
+            print_info("获取分享列表...")
+
+            # 调用分享列表函数
+            list_my_shares(page=page, size=size)
+
+        except Exception as e:
+            print_error(f"获取分享列表失败: {e}")
 
     def _resolve_path_to_id(self, path: str) -> Optional[str]:
         """解析路径到文件ID"""

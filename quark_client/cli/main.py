@@ -135,13 +135,13 @@ def share(
     create_share(file_paths, title, expire_days, password, use_id)
 
 
-# @app.command()
-# def shares(
-#     page: int = typer.Option(1, "--page", help="页码"),
-#     size: int = typer.Option(20, "--size", help="每页数量")
-# ):
-#     """列出我的分享"""
-#     list_my_shares(page, size)
+@app.command()
+def shares(
+    page: int = typer.Option(1, "--page", help="页码"),
+    size: int = typer.Option(20, "--size", help="每页数量")
+):
+    """列出我的分享"""
+    list_my_shares(page, size)
 
 
 @app.command()

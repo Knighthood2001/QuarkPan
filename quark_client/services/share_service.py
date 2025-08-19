@@ -127,13 +127,15 @@ class ShareService:
             分享列表
         """
         params = {
-            'page': page,
-            'size': size,
-            'order': 'created_at',
-            'asc': 0  # 降序
+            '_page': page,
+            '_size': size,
+            '_order_field': 'created_at',
+            '_order_type': 'desc',  # 降序
+            '_fetch_total': 1,
+            '_fetch_notify_follow': 1
         }
 
-        response = self.client.get('share/list', params=params)
+        response = self.client.get('share/mypage/detail', params=params)
         return response
     
     def parse_share_url(self, share_url: str) -> Tuple[str, Optional[str]]:
@@ -363,10 +365,13 @@ class ShareService:
         params = {
             '_page': page,
             '_size': size,
-            '_sort': 'created_at:desc'
+            '_order_field': 'created_at',
+            '_order_type': 'desc',
+            '_fetch_total': 1,
+            '_fetch_notify_follow': 1
         }
         
-        response = self.client.get('share', params=params)
+        response = self.client.get('share/mypage/detail', params=params)
         return response
     
     def delete_share(self, share_id: str) -> Dict[str, Any]:

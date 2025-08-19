@@ -120,27 +120,30 @@ def list_my_shares(page: int = 1, size: int = 20):
             print_info(f"📋 获取我的分享列表 (第{page}页)...")
             
             result = client.get_my_shares(page=page, size=size)
-            
+
             if result and result.get('status') == 200:
                 data = result.get('data', {})
                 shares = data.get('list', [])
-                total = data.get('total', 0)
-                
+                metadata = result.get('metadata', {})
+                total = metadata.get('_total', 0)
+
                 if not shares:
                     print_warning("暂无分享")
                     return
-                
+
                 print_success(f"✅ 找到 {total} 个分享")
-                
+
                 # 创建表格
                 table = Table(title=f"我的分享 (第{page}页，共{total}个)")
                 table.add_column("序号", style="cyan", width=4)
-                table.add_column("标题", style="green", width=20)
+                table.add_column("标题", style="green", width=18)
+                table.add_column("分享链接", style="bright_blue", width=35)
+                table.add_column("类型", style="yellow", width=4)
                 table.add_column("文件数", style="yellow", width=6)
-                table.add_column("创建时间", style="blue", width=16)
-                table.add_column("状态", style="magenta", width=8)
-                table.add_column("分享链接", style="white", width=30)
-                
+                table.add_column("创建时间", style="blue", width=12)
+                table.add_column("状态", style="magenta", width=6)
+                table.add_column("访问量", style="dim", width=6)
+
                 for i, share in enumerate(shares, 1):
                     # 格式化创建时间
                     created_at = share.get('created_at', 0)
@@ -150,32 +153,49 @@ def list_my_shares(page: int = 1, size: int = 20):
                         time_str = create_time.strftime('%m-%d %H:%M')
                     else:
                         time_str = "未知"
-                    
+
                     # 状态
                     status = "正常" if share.get('status') == 1 else "已失效"
-                    
-                    # 分享链接
+
+                    # 类型（文件夹或文件）
+                    first_file = share.get('first_file', {})
+                    is_dir = first_file.get('dir', False)
+                    file_type = "📁" if is_dir else "📄"
+
+                    # 分享链接（完整显示）
                     share_url = share.get('share_url', '')
-                    if len(share_url) > 28:
-                        share_url = share_url[:25] + "..."
-                    
+
+                    # 访问量
+                    click_pv = share.get('click_pv', 0)
+
                     table.add_row(
                         str(i),
-                        share.get('title', '无标题')[:18],
+                        share.get('title', '无标题')[:16],  # 稍微缩短标题
+                        share_url,  # 完整显示分享链接
+                        file_type,
                         str(share.get('file_num', 0)),
                         time_str,
                         status,
-                        share_url
+                        str(click_pv)
                     )
-                
+
                 console.print(table)
-                
+
+                # 显示详细统计信息
+                print_info(f"\n📊 统计信息:")
+                total_clicks = sum(share.get('click_pv', 0) for share in shares)
+                total_saves = sum(share.get('save_pv', 0) for share in shares)
+                total_downloads = sum(share.get('download_pv', 0) for share in shares)
+                print_info(f"   总访问量: {total_clicks}")
+                print_info(f"   总保存量: {total_saves}")
+                print_info(f"   总下载量: {total_downloads}")
+
                 # 分页信息
                 total_pages = (total + size - 1) // size
                 if total_pages > 1:
                     print_info(f"\n📄 第 {page}/{total_pages} 页")
                     if page < total_pages:
-                        print_info(f"使用 'quarkpan share list --page {page + 1}' 查看下一页")
+                        print_info(f"使用 'quarkpan shares --page {page + 1}' 查看下一页")
             else:
                 print_error("获取分享列表失败")
                 raise typer.Exit(1)
