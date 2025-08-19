@@ -117,7 +117,6 @@ def print_ascii_qr(text: str):
         qr.make(fit=True)
         # 反相打印，提升终端显示对比度（部分终端/主题需要关闭 invert）
         qr.print_ascii(invert=True)
-        logger.info("用手机对准终端二维码扫描即可")
     except Exception as e:
         logger.warning(f"ASCII QR render failed: {e}")
 

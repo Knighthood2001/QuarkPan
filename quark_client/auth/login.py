@@ -1,6 +1,6 @@
 """
 夸克网盘登录模块
-基于Playwright实现自动化登录和Cookie管理
+支持多种登录方式：API登录、简化登录、Playwright登录
 """
 
 import os
@@ -8,11 +8,6 @@ import json
 import time
 from typing import Dict, List, Optional, Union
 from pathlib import Path
-
-try:
-    from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
-except ImportError:
-    raise ImportError("请安装playwright: pip install playwright")
 
 from ..config import get_config_dir
 from ..exceptions import AuthenticationError, ConfigError
@@ -22,21 +17,18 @@ from ..utils.logger import get_logger
 class QuarkAuth:
     """夸克网盘认证管理器"""
 
-    def __init__(self, headless: bool = True, slow_mo: int = 0):
+    def __init__(self, timeout: int = 300):
         """
         初始化认证管理器
 
         Args:
-            headless: 是否无头模式运行浏览器
-            slow_mo: 浏览器操作延迟(毫秒)
+            timeout: 登录超时时间(秒)，默认5分钟
         """
-        self.headless = headless
-        self.slow_mo = slow_mo
+        self.timeout = timeout
         self.config_dir = get_config_dir()
         self.cookies_file = self.config_dir / "cookies.json"
-        self.browser_data_dir = self.config_dir / "browser_data"
         self.logger = get_logger(__name__)
-        
+
         # 确保配置目录存在
         self.config_dir.mkdir(parents=True, exist_ok=True)
         
@@ -114,13 +106,14 @@ class QuarkAuth:
         cookie_dict = self._cookies_to_dict(cookies)
         return '; '.join([f"{key}={value}" for key, value in cookie_dict.items()])
     
-    def login(self, force_relogin: bool = False, use_qr: bool = True) -> str:
+    def login(self, force_relogin: bool = False, use_qr: bool = True, method: str = "auto") -> str:
         """
-        执行登录流程
+        执行多层级登录流程
 
         Args:
             force_relogin: 是否强制重新登录
-            use_qr: 是否使用二维码登录
+            use_qr: 是否使用二维码登录（兼容性参数）
+            method: 登录方式 ("auto", "api", "simple")
 
         Returns:
             Cookie字符串
@@ -132,26 +125,92 @@ class QuarkAuth:
         if not force_relogin:
             saved_cookies = self._load_cookies()
             if saved_cookies:
+                self.logger.info("使用已保存的登录凭证")
                 return self._cookies_to_string(saved_cookies['cookies'])
 
-        # 优先使用二维码登录
-        if use_qr:
-            try:
-                from .qr_login import qr_login
-                cookies = qr_login(headless=True)
+        # 根据指定方法进行登录
+        if method == "auto":
+            return self._auto_login()
+        elif method == "api":
+            return self._api_login()
+        elif method == "simple":
+            return self._simple_login()
+        else:
+            raise AuthenticationError(f"不支持的登录方式: {method}")
 
+    def _auto_login(self) -> str:
+        """
+        自动选择最佳登录方式
+        优先级: API登录 → 简化登录 → Playwright登录
+        """
+        self.logger.debug("开始自动登录流程")
+
+        # 1. 尝试API登录
+        try:
+            self.logger.debug("尝试API登录...")
+            return self._api_login()
+        except Exception as e:
+            self.logger.debug(f"API登录失败: {e}")
+
+        # 2. 尝试简化登录
+        try:
+            self.logger.debug("尝试简化登录...")
+            return self._simple_login()
+        except Exception as e:
+            self.logger.debug(f"简化登录失败: {e}")
+
+        # 如果所有方式都失败了
+        raise AuthenticationError("所有登录方式都失败了")
+
+    def _api_login(self) -> str:
+        """API登录方式"""
+        try:
+            from .api_login import APILogin
+
+            api_login = APILogin(timeout=self.timeout)
+            cookies = api_login.login()
+
+            if cookies:
                 # 解析cookies字符串为列表格式
                 cookie_list = self._parse_cookie_string(cookies)
 
                 # 保存cookies
                 self._save_cookies(cookie_list)
+                self.logger.debug("API登录成功")
                 return cookies
+            else:
+                raise AuthenticationError("API登录返回空Cookie")
 
-            except Exception:
-                pass
+        except ImportError:
+            raise AuthenticationError("API登录模块不可用")
+        except Exception as e:
+            raise AuthenticationError(f"API登录失败: {e}")
 
-        # 回退到手动登录
-        return self._manual_login()
+    def _simple_login(self) -> str:
+        """简化登录方式"""
+        try:
+            from .simple_login import SimpleLogin
+
+            simple_login = SimpleLogin()
+            cookies = simple_login.login()
+
+            if cookies:
+                # 解析cookies字符串为列表格式
+                cookie_list = self._parse_cookie_string(cookies)
+
+                # 保存cookies
+                self._save_cookies(cookie_list)
+                self.logger.debug("简化登录成功")
+                return cookies
+            else:
+                raise AuthenticationError("简化登录返回空Cookie")
+
+        except ImportError:
+            raise AuthenticationError("简化登录模块不可用")
+        except Exception as e:
+            raise AuthenticationError(f"简化登录失败: {e}")
+
+
 
     def _parse_cookie_string(self, cookie_string: str) -> List[Dict]:
         """将cookie字符串解析为列表格式"""
@@ -167,58 +226,6 @@ class QuarkAuth:
                 })
         return cookies
 
-    def _manual_login(self) -> str:
-        """手动登录模式"""
-        self.logger.info("启动浏览器进行手动登录")
-
-        try:
-            with sync_playwright() as p:
-                # 启动浏览器
-                browser = p.firefox.launch_persistent_context(
-                    str(self.browser_data_dir),
-                    headless=self.headless,
-                    slow_mo=self.slow_mo,
-                    args=['--start-maximized'] if not self.headless else [],
-                    no_viewport=not self.headless
-                )
-
-                page = browser.pages[0] if browser.pages else browser.new_page()
-
-                # 访问夸克网盘
-                self.logger.info("正在打开夸克网盘")
-                page.goto('https://pan.quark.cn/')
-
-                # 等待用户登录
-                if not self.headless:
-                    input("\n请在浏览器中完成登录，登录成功后回到此处按 Enter 键继续...")
-                else:
-                    # 无头模式下需要自动检测登录状态
-                    self._wait_for_login(page)
-
-                # 获取cookies
-                cookies = page.context.cookies()
-
-                # 验证登录是否成功
-                if not self._validate_cookies(cookies):
-                    raise AuthenticationError("登录验证失败，请重试")
-
-                # 保存cookies
-                self._save_cookies(cookies)
-
-                self.logger.info("登录成功")
-                return self._cookies_to_string(cookies)
-
-        except Exception as e:
-            if isinstance(e, AuthenticationError):
-                raise
-            raise AuthenticationError(f"登录过程中发生错误: {e}")
-    
-    def _wait_for_login(self, page: Page, timeout: int = 300000) -> None:
-        """等待用户完成登录（无头模式）"""
-        # 这里可以实现自动检测登录状态的逻辑
-        # 比如检查特定元素的出现、URL变化等
-        pass
-    
     def _validate_cookies(self, cookies: List[Dict]) -> bool:
         """验证cookies是否有效"""
         # 检查是否包含夸克相关的cookies
@@ -243,7 +250,7 @@ class QuarkAuth:
                 cookie_string = self._cookies_to_string(cookies)
 
                 # 简单验证：检查是否有必要的cookie
-                required_cookies = ['__pus', '__puus']
+                required_cookies = ['__pus', '__kps', '__uid']  # 夸克网盘的关键cookie
                 has_required = all(required in cookie_string for required in required_cookies)
 
                 if has_required:
@@ -260,7 +267,7 @@ class QuarkAuth:
         try:
             if self.cookies_file.exists():
                 self.cookies_file.unlink()
-            self.logger.info("已清除登录信息")
+            self.logger.debug("已清除登录信息")
         except Exception as e:
             self.logger.error(f"清除登录信息时出错: {e}")
     
@@ -278,7 +285,7 @@ class QuarkAuth:
 
             # 简单验证：检查是否有必要的cookie字段
             cookie_string = self._cookies_to_string(cookies)
-            required_cookies = ['__pus', '__puus']  # 夸克网盘的关键cookie
+            required_cookies = ['__pus', '__kps', '__uid']  # 夸克网盘的关键cookie
 
             for required in required_cookies:
                 if required not in cookie_string:
@@ -291,7 +298,7 @@ class QuarkAuth:
 
 
 # 便捷函数
-def get_auth_cookies(headless: bool = True, force_relogin: bool = False) -> str:
+def get_auth_cookies(timeout: int = 300, force_relogin: bool = False) -> str:
     """获取认证cookies的便捷函数"""
-    auth = QuarkAuth(headless=headless)
+    auth = QuarkAuth(timeout=timeout)
     return auth.get_cookies(force_relogin=force_relogin)

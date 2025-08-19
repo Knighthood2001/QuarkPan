@@ -13,10 +13,10 @@ from ..client import QuarkClient
 console = Console()
 
 
-def get_client() -> QuarkClient:
+def get_client(auto_login: bool = True) -> QuarkClient:
     """获取客户端实例"""
     try:
-        return QuarkClient()
+        return QuarkClient(auto_login=auto_login)
     except Exception as e:
         rprint(f"[red]❌ 创建客户端失败: {e}[/red]")
         sys.exit(1)

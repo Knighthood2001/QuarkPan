@@ -52,7 +52,7 @@ class QuarkAPIClient:
         """确保已认证"""
         if not self.cookies:
             if not self._auth:
-                self._auth = QuarkAuth(headless=True)
+                self._auth = QuarkAuth()
             self.cookies = self._auth.get_cookies()
     
     def _get_timestamp(self) -> int:

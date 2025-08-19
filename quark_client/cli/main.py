@@ -3,11 +3,15 @@
 QuarkPan CLI 主入口
 """
 
+import logging
 import typer
 from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
 from typing import Optional, List
+
+# 设置CLI模式下的日志级别为WARNING，减少日志输出
+logging.getLogger("quark_client").setLevel(logging.WARNING)
 
 from .commands.auth import auth_app
 

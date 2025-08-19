@@ -14,33 +14,49 @@ auth_app = typer.Typer(help="🔐 认证管理")
 @auth_app.command()
 def login(
     force: bool = typer.Option(False, "--force", "-f", help="强制重新登录"),
-    qr: bool = typer.Option(True, "--qr/--no-qr", help="使用二维码登录"),
-    manual: bool = typer.Option(False, "--manual", "-m", help="使用手动登录")
+    method: str = typer.Option("auto", "--method", "-m", help="登录方式: auto, api, simple"),
+    api: bool = typer.Option(False, "--api", help="使用API登录"),
+    simple: bool = typer.Option(False, "--simple", help="使用简化登录")
 ):
-    """登录夸克网盘"""
+    """🔐 登录夸克网盘
+
+    支持多种登录方式：
+    • auto: 自动选择最佳方式 (默认)
+    • api: 纯API登录，轻量快速
+    • simple: 简化登录，手动指导
+    """
     try:
-        with get_client() as client:
+        with get_client(auto_login=False) as client:
             # 检查当前登录状态
             if not force and client.is_logged_in():
                 rprint("[green]✅ 已经登录，无需重复登录[/green]")
                 rprint("使用 [cyan]--force[/cyan] 强制重新登录")
                 return
-            
-            print_info("正在登录夸克网盘...")
-            
-            # 选择登录方式
-            use_qr = qr and not manual
-            
-            if use_qr:
-                print_info("使用二维码登录...")
-                rprint("[dim]将自动打开浏览器并显示二维码[/dim]")
-                rprint("[dim]请使用夸克APP扫描二维码完成登录[/dim]")
+
+            # 确定登录方式
+            if api:
+                method = "api"
+            elif simple:
+                method = "simple"
+
+            # 显示登录方式信息
+            method_info = {
+                "auto": "🚀 自动选择最佳登录方式",
+                "api": "⚡ API登录 - 轻量快速，无需浏览器",
+                "simple": "📝 简化登录 - 手动指导，完全无依赖"
+            }
+
+            print_info(f"正在登录夸克网盘... {method_info.get(method, method)}")
+
+            if method == "api":
+                rprint("[dim]将自动生成二维码，请使用夸克APP扫描[/dim]")
+            elif method == "simple":
+                rprint("[dim]将提供详细的手动登录指导[/dim]")
             else:
-                print_info("使用手动登录...")
-                rprint("[dim]将打开浏览器，请手动完成登录[/dim]")
-            
+                rprint("[dim]将自动选择最适合的登录方式[/dim]")
+
             # 执行登录
-            cookies = client.login(force_relogin=force, use_qr=use_qr)
+            cookies = client.login(force_relogin=force, method=method)
             
             if cookies:
                 print_success("登录成功！")
@@ -80,15 +96,15 @@ def login(
 def logout():
     """登出夸克网盘"""
     try:
-        with get_client() as client:
+        with get_client(auto_login=False) as client:
             if not client.is_logged_in():
                 rprint("[yellow]⚠️ 当前未登录[/yellow]")
                 return
-            
+
             print_info("正在登出...")
             client.logout()
             print_success("已成功登出")
-            
+
     except Exception as e:
         print_error(f"登出失败: {e}")
         raise typer.Exit(1)
@@ -98,7 +114,7 @@ def logout():
 def status():
     """检查登录状态"""
     try:
-        with get_client() as client:
+        with get_client(auto_login=False) as client:
             if client.is_logged_in():
                 print_success("已登录")
                 

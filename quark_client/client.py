@@ -39,18 +39,19 @@ class QuarkClient:
             self._auth = QuarkAuth()
         return self._auth
     
-    def login(self, force_relogin: bool = False, use_qr: bool = True) -> str:
+    def login(self, force_relogin: bool = False, use_qr: bool = True, method: str = "auto") -> str:
         """
-        执行登录
+        执行多层级登录
 
         Args:
             force_relogin: 是否强制重新登录
-            use_qr: 是否使用二维码登录
+            use_qr: 是否使用二维码登录（兼容性参数）
+            method: 登录方式 ("auto", "api", "simple")
 
         Returns:
             Cookie字符串
         """
-        cookies = self.auth.login(force_relogin, use_qr)
+        cookies = self.auth.login(force_relogin, use_qr, method)
         self.api_client.cookies = cookies
         return cookies
     
