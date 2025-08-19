@@ -17,6 +17,7 @@ from .commands.search import do_search
 from .commands.download import download_file as cmd_download_file
 from .commands.basic_fileops import create_folder, delete_files, rename_file, upload_file
 from .commands.share_commands import create_share, list_my_shares
+from .commands.move_commands import move_files
 
 console = Console()
 
@@ -63,6 +64,8 @@ class InteractiveShell:
             'up': self.cmd_upload,
             'share': self.cmd_share,
             'shares': self.cmd_shares,
+            'move': self.cmd_move,
+            'mv': self.cmd_move,
         }
     
     def start(self):
@@ -163,6 +166,7 @@ class InteractiveShell:
             ("upload <file>", "up", "上传文件到当前目录"),
             ("share <path>", "", "创建分享链接"),
             ("shares", "", "查看我的分享列表"),
+            ("move <src> <dst>", "mv", "移动文件到目标文件夹"),
             ("clear", "cls", "清屏"),
         ]
         
@@ -671,6 +675,67 @@ class InteractiveShell:
 
         except Exception as e:
             print_error(f"获取分享列表失败: {e}")
+
+    def cmd_move(self, args: List[str]):
+        """移动文件"""
+        if len(args) < 2:
+            print_error("用法: move <源文件路径> <目标文件夹路径>")
+            print_info("示例: move file.txt Documents/")
+            print_info("示例: mv folder1/ folder2/")
+            return
+
+        source_path = args[0]
+        target_path = args[1]
+
+        try:
+            # 解析源文件路径到文件ID
+            source_file_id = self._resolve_path_to_id(source_path)
+            if not source_file_id:
+                print_error(f"无法找到源文件: {source_path}")
+                return
+
+            # 解析目标文件夹路径到文件夹ID
+            target_folder_id = self._resolve_path_to_id(target_path)
+            if not target_folder_id:
+                print_error(f"无法找到目标文件夹: {target_path}")
+                return
+
+            # 检查目标是否为文件夹
+            try:
+                from ..services.name_resolver import NameResolver
+                resolver = NameResolver(self.client.files)
+
+                # 获取目标文件信息
+                if target_path.startswith('/'):
+                    _, target_info = resolver.resolve_path(target_path)
+                else:
+                    # 相对路径，从当前目录开始解析
+                    if self.current_folder_id == "0":
+                        full_path = f"/{target_path}"
+                    else:
+                        current_path = self._get_current_path()
+                        full_path = f"{current_path}/{target_path}".replace("//", "/")
+                    _, target_info = resolver.resolve_path(full_path)
+
+                if not target_info.get('dir', False):
+                    print_error(f"目标不是文件夹: {target_path}")
+                    return
+
+            except Exception as e:
+                print_error(f"无法验证目标文件夹: {e}")
+                return
+
+            print_info(f"移动 '{source_path}' 到 '{target_path}'...")
+
+            # 调用移动函数
+            move_files(
+                source_paths=[source_file_id],
+                target_path=target_folder_id,
+                use_id=True
+            )
+
+        except Exception as e:
+            print_error(f"移动文件失败: {e}")
 
     def _resolve_path_to_id(self, path: str) -> Optional[str]:
         """解析路径到文件ID"""

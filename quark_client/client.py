@@ -361,6 +361,26 @@ class QuarkClient:
             分享列表
         """
         return self.shares.get_my_shares(page, size)
+
+    # 文件操作方法
+    def move_files(
+        self,
+        file_ids: List[str],
+        target_folder_id: str,
+        exclude_fids: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        移动文件到指定文件夹
+
+        Args:
+            file_ids: 要移动的文件ID列表
+            target_folder_id: 目标文件夹ID
+            exclude_fids: 排除的文件ID列表
+
+        Returns:
+            移动结果
+        """
+        return self.files.move_files(file_ids, target_folder_id, exclude_fids)
     
     def close(self):
         """关闭客户端"""

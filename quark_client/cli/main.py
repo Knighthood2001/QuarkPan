@@ -15,6 +15,7 @@ from .commands.search import search_app
 from .commands.download import download_app
 from .commands.basic_fileops import create_folder, delete_files, rename_file, file_info, get_download_link, browse_folder, goto_folder, upload_file
 from .commands.share_commands import create_share, list_my_shares, save_share
+from .commands.move_commands import move_files, move_to_folder
 
 from .interactive import start_interactive
 from .utils import get_client, format_file_size, format_timestamp, get_folder_name_by_id
@@ -152,6 +153,38 @@ def save(
 ):
     """转存分享文件"""
     save_share(share_url, target_folder, create_folder)
+
+
+@app.command()
+def move(
+    source_paths: List[str] = typer.Argument(..., help="要移动的文件/文件夹路径或ID"),
+    target_path: str = typer.Option(..., "--to", "-t", help="目标文件夹路径或ID"),
+    use_id: bool = typer.Option(False, "--use-id", help="使用文件ID而不是路径")
+):
+    """移动文件到指定文件夹"""
+    move_files(source_paths, target_path, use_id)
+
+
+@app.command()
+def mv(
+    source_paths: List[str] = typer.Argument(..., help="要移动的文件/文件夹路径或ID"),
+    target_path: str = typer.Option(..., "--to", "-t", help="目标文件夹路径或ID"),
+    use_id: bool = typer.Option(False, "--use-id", help="使用文件ID而不是路径")
+):
+    """移动文件到指定文件夹（move的简写）"""
+    move_files(source_paths, target_path, use_id)
+
+
+@app.command()
+def move_to(
+    source_paths: List[str] = typer.Argument(..., help="要移动的文件/文件夹路径或ID"),
+    folder_name: str = typer.Option(..., "--folder", "-f", help="目标文件夹名称"),
+    parent_folder: str = typer.Option("/", "--parent", "-p", help="父文件夹路径"),
+    create_folder: bool = typer.Option(True, "--create-folder/--no-create-folder", help="自动创建目标文件夹"),
+    use_id: bool = typer.Option(False, "--use-id", help="使用文件ID而不是路径")
+):
+    """移动文件到指定名称的文件夹"""
+    move_to_folder(source_paths, folder_name, parent_folder, create_folder, use_id)
 
 
 @app.command()

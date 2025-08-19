@@ -1307,3 +1307,91 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
             raise APIError(f"完成上传失败: {response.get('message', '未知错误')}")
 
         return response.get('data', {})
+
+    def move_files(
+        self,
+        file_ids: List[str],
+        target_folder_id: str,
+        exclude_fids: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        移动文件到指定文件夹
+
+        Args:
+            file_ids: 要移动的文件ID列表
+            target_folder_id: 目标文件夹ID
+            exclude_fids: 排除的文件ID列表
+
+        Returns:
+            移动结果
+        """
+        data = {
+            'action_type': 1,  # 移动操作
+            'to_pdir_fid': target_folder_id,
+            'filelist': file_ids,
+            'exclude_fids': exclude_fids or []
+        }
+
+        response = self.api_client.post('file/move', json_data=data)
+
+        if not response.get('status') == 200:
+            raise APIError(f"移动文件失败: {response.get('message', '未知错误')}")
+
+        data = response.get('data', {})
+        task_id = data.get('task_id')
+        finish = data.get('finish', False)
+
+        if finish:
+            # 同步完成，直接返回结果
+            return response
+        elif task_id:
+            # 异步任务，需要轮询状态
+            return self._wait_for_move_task(task_id, response.get('metadata', {}).get('tq_gap', 500))
+        else:
+            raise APIError("移动任务创建失败，无法获取任务ID")
+
+    def _wait_for_move_task(self, task_id: str, poll_interval: int = 500) -> Dict[str, Any]:
+        """
+        等待移动任务完成
+
+        Args:
+            task_id: 任务ID
+            poll_interval: 轮询间隔（毫秒）
+
+        Returns:
+            任务完成结果
+        """
+        import time
+
+        max_retries = 30  # 最多等待15秒
+        retry_count = 0
+
+        while retry_count < max_retries:
+            try:
+                task_response = self.api_client.get(
+                    'task',
+                    params={
+                        'task_id': task_id,
+                        'retry_index': retry_count
+                    }
+                )
+
+                if task_response.get('status') == 200:
+                    task_data = task_response.get('data', {})
+
+                    # 检查任务状态
+                    if task_data.get('status') == 2:  # 任务完成
+                        return task_response
+                    elif task_data.get('status') == 3:  # 任务失败
+                        raise APIError(f"移动任务失败: {task_data.get('message', '任务失败')}")
+
+                retry_count += 1
+                time.sleep(poll_interval / 1000)  # 转换为秒
+
+            except Exception as e:
+                if retry_count >= max_retries - 1:
+                    raise APIError(f"移动任务轮询失败: {e}")
+                retry_count += 1
+                time.sleep(poll_interval / 1000)
+
+        raise APIError("移动任务超时")
