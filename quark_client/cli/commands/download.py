@@ -3,13 +3,14 @@
 """
 
 import os
-import typer
 from typing import List, Optional
+
+import typer
 from rich.console import Console
-from rich.progress import Progress, BarColumn, TextColumn, TimeRemainingColumn
 from rich.table import Table
 
-from ..utils import print_info, print_error, print_success, print_warning, get_client, handle_api_error, format_file_size
+from ..utils import (format_file_size, get_client, handle_api_error,
+                     print_error, print_info, print_success, print_warning)
 
 console = Console()
 download_app = typer.Typer(help="📥 文件下载")
@@ -93,7 +94,9 @@ def download_files(
                     percent = (downloaded / total) * 100
                     downloaded_mb = downloaded / (1024 * 1024)
                     total_mb = total / (1024 * 1024)
-                    print(f"\r文件 {current_file}/{total_files}: {percent:.1f}% ({downloaded_mb:.1f}MB/{total_mb:.1f}MB)", end="", flush=True)
+                    print(
+                        f"\r文件 {current_file}/{total_files}: {percent:.1f}% ({downloaded_mb:.1f}MB/{total_mb:.1f}MB)",
+                        end="", flush=True)
                 else:
                     downloaded_mb = downloaded / (1024 * 1024)
                     print(f"\r文件 {current_file}/{total_files}: {downloaded_mb:.1f}MB", end="", flush=True)

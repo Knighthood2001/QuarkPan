@@ -2,12 +2,14 @@
 分享相关命令
 """
 
-import typer
 from typing import List, Optional
+
+import typer
 from rich.console import Console
 from rich.table import Table
 
-from ..utils import print_info, print_error, print_success, print_warning, get_client, handle_api_error
+from ..utils import (get_client, handle_api_error, print_error, print_info,
+                     print_success, print_warning)
 
 
 def create_share(
@@ -19,13 +21,13 @@ def create_share(
 ):
     """创建分享链接"""
     console = Console()
-    
+
     try:
         with get_client() as client:
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
-            
+
             # 解析文件路径或ID
             if use_id:
                 file_ids = file_paths
@@ -34,7 +36,7 @@ def create_share(
                 # 使用路径解析器将路径转换为ID
                 from ...services.name_resolver import NameResolver
                 resolver = NameResolver(client.files)
-                
+
                 file_ids = []
                 for path in file_paths:
                     try:
@@ -44,7 +46,7 @@ def create_share(
                     except Exception as e:
                         print_error(f"无法解析路径 '{path}': {e}")
                         raise typer.Exit(1)
-            
+
             # 显示分享参数
             print_info("📤 创建分享链接...")
             if title:
@@ -57,7 +59,7 @@ def create_share(
                 print_info(f"   提取码: {password}")
             else:
                 print_info("   提取码: 无")
-            
+
             # 创建分享
             result = client.create_share(
                 file_ids=file_ids,
@@ -65,20 +67,20 @@ def create_share(
                 expire_days=expire_days,
                 password=password
             )
-            
+
             if result:
                 print_success("✅ 分享创建成功!")
-                
+
                 # 显示分享信息
                 table = Table(title="分享信息")
                 table.add_column("属性", style="cyan")
                 table.add_column("值", style="green")
-                
+
                 table.add_row("分享链接", result.get('share_url', 'N/A'))
                 table.add_row("分享ID", result.get('pwd_id', 'N/A'))
                 table.add_row("标题", result.get('title', 'N/A'))
                 table.add_row("文件数量", str(result.get('file_num', 0)))
-                
+
                 if result.get('expired_type') == 1:
                     table.add_row("有效期", "永久")
                 else:
@@ -87,9 +89,9 @@ def create_share(
                         import datetime
                         expire_date = datetime.datetime.fromtimestamp(expired_at / 1000)
                         table.add_row("有效期", expire_date.strftime('%Y-%m-%d %H:%M:%S'))
-                
+
                 console.print(table)
-                
+
                 # 显示复制友好的格式
                 share_url = result.get('share_url', '')
                 if password:
@@ -101,7 +103,7 @@ def create_share(
             else:
                 print_error("分享创建失败")
                 raise typer.Exit(1)
-            
+
     except Exception as e:
         handle_api_error(e, "创建分享")
         raise typer.Exit(1)
@@ -110,15 +112,15 @@ def create_share(
 def list_my_shares(page: int = 1, size: int = 20):
     """列出我的分享"""
     console = Console()
-    
+
     try:
         with get_client() as client:
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
-            
+
             print_info(f"📋 获取我的分享列表 (第{page}页)...")
-            
+
             result = client.get_my_shares(page=page, size=size)
 
             if result and result.get('status') == 200:
@@ -199,7 +201,7 @@ def list_my_shares(page: int = 1, size: int = 20):
             else:
                 print_error("获取分享列表失败")
                 raise typer.Exit(1)
-            
+
     except Exception as e:
         handle_api_error(e, "获取分享列表")
         raise typer.Exit(1)
@@ -216,18 +218,18 @@ def save_share(
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
-            
+
             print_info(f"🔗 解析分享链接: {share_url}")
-            
+
             # 解析目标文件夹
             target_folder_id = "0"  # 默认根目录
             target_folder_name = None
-            
+
             if target_folder != "/":
                 # 解析目标文件夹路径
                 from ...services.name_resolver import NameResolver
                 resolver = NameResolver(client.files)
-                
+
                 try:
                     target_folder_id, _ = resolver.resolve_path(target_folder)
                     print_info(f"目标文件夹: {target_folder}")
@@ -240,20 +242,20 @@ def save_share(
                         print_error(f"目标文件夹不存在: {target_folder}")
                         print_info("使用 --create-folder 自动创建文件夹")
                         raise typer.Exit(1)
-            
+
             print_info("📥 开始转存...")
-            
+
             result = client.save_shared_files(
                 share_url=share_url,
                 target_folder_id=target_folder_id,
                 target_folder_name=target_folder_name
             )
-            
+
             if result:
                 share_info = result.get('share_info', {})
                 file_count = share_info.get('file_count', 0)
                 print_success(f"✅ 转存成功! 共转存 {file_count} 个文件")
-                
+
                 # 显示转存的文件信息
                 files = share_info.get('files', [])
                 if files and len(files) <= 10:  # 只显示前10个文件
@@ -269,7 +271,7 @@ def save_share(
             else:
                 print_error("转存失败")
                 raise typer.Exit(1)
-            
+
     except Exception as e:
         handle_api_error(e, "转存分享")
         raise typer.Exit(1)

@@ -2,30 +2,32 @@
 文件管理服务
 """
 
-import os
-import httpx
 import hashlib
 import mimetypes
+import os
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Callable, Dict, List, Optional
+
+import httpx
+
 from ..core.api_client import QuarkAPIClient
 from ..exceptions import APIError, FileNotFoundError
 
 
 class FileService:
     """文件管理服务"""
-    
+
     def __init__(self, client: QuarkAPIClient):
         """
         初始化文件服务
-        
+
         Args:
             client: API客户端实例
         """
         self.client = client
         self.api_client = client  # 为了兼容新的上传方法
-    
+
     def list_files(
         self,
         folder_id: str = "0",
@@ -36,14 +38,14 @@ class FileService:
     ) -> Dict[str, Any]:
         """
         获取文件列表
-        
+
         Args:
             folder_id: 文件夹ID，"0"表示根目录
             page: 页码，从1开始
             size: 每页数量
             sort_field: 排序字段 (file_name, file_size, updated_at等)
             sort_order: 排序方向 (asc, desc)
-            
+
         Returns:
             包含文件列表的字典
         """
@@ -53,7 +55,7 @@ class FileService:
             '_size': size,
             '_sort': f"{sort_field}:{sort_order}"
         }
-        
+
         try:
             response = self.client.get('file/sort', params=params)
             return response
@@ -61,7 +63,7 @@ class FileService:
             if 'not found' in str(e).lower():
                 raise FileNotFoundError(f"文件夹不存在: {folder_id}")
             raise
-    
+
     def get_file_info(self, file_id: str) -> Dict[str, Any]:
         """
         获取文件详细信息
@@ -103,15 +105,15 @@ class FileService:
             if 'not found' in str(e).lower():
                 raise FileNotFoundError(f"文件不存在: {file_id}")
             raise
-    
+
     def create_folder(self, folder_name: str, parent_id: str = "0") -> Dict[str, Any]:
         """
         创建文件夹
-        
+
         Args:
             folder_name: 文件夹名称
             parent_id: 父文件夹ID，"0"表示根目录
-            
+
         Returns:
             创建结果
         """
@@ -131,14 +133,14 @@ class FileService:
 
         response = self.client.post('file', json_data=data, params=params)
         return response
-    
+
     def delete_files(self, file_ids: List[str]) -> Dict[str, Any]:
         """
         删除文件/文件夹
-        
+
         Args:
             file_ids: 文件ID列表
-            
+
         Returns:
             删除结果
         """
@@ -157,44 +159,15 @@ class FileService:
 
         response = self.client.post('file/delete', json_data=data, params=params)
         return response
-    
-    def move_files(self, file_ids: List[str], target_folder_id: str) -> Dict[str, Any]:
-        """
-        移动文件/文件夹
-        
-        Args:
-            file_ids: 文件ID列表
-            target_folder_id: 目标文件夹ID
-            
-        Returns:
-            移动结果
-        """
-        # 尝试不同的API参数格式
-        data = {
-            'action_type': 1,  # 移动操作
-            'filelist': file_ids,
-            'target_fid': target_folder_id,
-            'exclude_fids': []
-        }
 
-        # 添加查询参数
-        params = {
-            'pr': 'ucpro',
-            'fr': 'pc',
-            'uc_param_str': ''
-        }
-
-        response = self.client.post('file/move', json_data=data, params=params)
-        return response
-    
     def rename_file(self, file_id: str, new_name: str) -> Dict[str, Any]:
         """
         重命名文件/文件夹
-        
+
         Args:
             file_id: 文件ID
             new_name: 新名称
-            
+
         Returns:
             重命名结果
         """
@@ -212,7 +185,7 @@ class FileService:
 
         response = self.client.post('file/rename', json_data=data, params=params)
         return response
-    
+
     def get_download_url(self, file_id: str) -> str:
         """
         获取文件下载链接
@@ -279,9 +252,9 @@ class FileService:
     def download_file(
         self,
         file_id: str,
-        save_path: str = None,
+        save_path: Optional[str] = None,
         chunk_size: int = 8192,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> str:
         """
         下载文件
@@ -295,7 +268,6 @@ class FileService:
         Returns:
             实际保存的文件路径
         """
-
 
         # 获取下载链接和文件信息
         params = {
@@ -315,7 +287,7 @@ class FileService:
                 download_info = data_list[0]
                 download_url = download_info.get('download_url', '')
                 file_name = download_info.get('file_name', f'file_{file_id}')
-                file_size = download_info.get('size', 0)
+                _ = download_info.get('size', 0)  # file_size 暂时未使用
             else:
                 raise APIError("无法获取下载信息")
         else:
@@ -329,6 +301,9 @@ class FileService:
             save_path = file_name
         elif os.path.isdir(save_path):
             save_path = os.path.join(save_path, file_name)
+
+        # 此时 save_path 不会是 None
+        assert save_path is not None
 
         # 创建目录
         save_dir = os.path.dirname(save_path)
@@ -357,7 +332,8 @@ class FileService:
 
         # 方法1: 使用API客户端的session
         try:
-            with self.client._client.stream('GET', download_url, headers=download_headers) as response:
+            with self.client._client.stream('GET', download_url,  # type: ignore[attr-defined]
+                                            headers=download_headers) as response:
                 response.raise_for_status()
                 success = True
 
@@ -392,7 +368,7 @@ class FileService:
                 # 从API客户端获取cookies
                 cookie_dict = {}
                 if hasattr(self.client._client, 'cookies'):
-                    for cookie in self.client._client.cookies.jar:
+                    for cookie in self.client._client.cookies.jar:  # type: ignore[attr-defined]
                         cookie_dict[cookie.name] = cookie.value
 
                 # 添加cookies到headers
@@ -430,7 +406,7 @@ class FileService:
         file_ids: List[str],
         save_dir: str = "downloads",
         chunk_size: int = 8192,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> List[str]:
         """
         批量下载文件
@@ -444,7 +420,6 @@ class FileService:
         Returns:
             下载的文件路径列表
         """
-
 
         os.makedirs(save_dir, exist_ok=True)
         downloaded_files = []
@@ -502,19 +477,19 @@ class FileService:
         }
 
         # 注意：夸克网盘的搜索API似乎不支持文件夹范围限制
-        # folder_id参数暂时不使用
+        _ = folder_id  # folder_id参数暂时不使用
 
         response = self.client.get('file/search', params=params)
         return response
-    
+
     def get_folder_tree(self, folder_id: str = "0", max_depth: int = 3) -> Dict[str, Any]:
         """
         获取文件夹树结构
-        
+
         Args:
             folder_id: 根文件夹ID
             max_depth: 最大深度
-            
+
         Returns:
             文件夹树结构
         """
@@ -522,7 +497,7 @@ class FileService:
             'pdir_fid': folder_id,
             'max_depth': max_depth
         }
-        
+
         response = self.client.get('file/tree', params=params)
         return response
 
@@ -654,8 +629,6 @@ class FileService:
 
         return response
 
-
-
     def get_file_path(self, file_id: str) -> str:
         """
         获取文件的完整路径
@@ -678,7 +651,7 @@ class FileService:
         self,
         file_path: str,
         parent_folder_id: str = "0",
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """
         上传文件到夸克网盘
@@ -695,19 +668,19 @@ class FileService:
             FileNotFoundError: 文件不存在
             APIError: API调用失败
         """
-        file_path = Path(file_path)
-        if not file_path.exists():
+        file_path_obj = Path(file_path)
+        if not file_path_obj.exists():
             raise FileNotFoundError(f"文件不存在: {file_path}")
 
-        if not file_path.is_file():
+        if not file_path_obj.is_file():
             raise ValueError(f"路径不是文件: {file_path}")
 
         # 获取文件信息
-        file_size = file_path.stat().st_size
-        file_name = file_path.name
+        file_size = file_path_obj.stat().st_size
+        file_name = file_path_obj.name
 
         # 获取MIME类型
-        mime_type, _ = mimetypes.guess_type(str(file_path))
+        mime_type, _ = mimetypes.guess_type(str(file_path_obj))
         if not mime_type:
             mime_type = "application/octet-stream"
 
@@ -715,7 +688,7 @@ class FileService:
         if progress_callback:
             progress_callback(0, "计算文件哈希...")
 
-        md5_hash, sha1_hash = self._calculate_file_hashes(file_path, progress_callback)
+        md5_hash, sha1_hash = self._calculate_file_hashes(file_path_obj, progress_callback)
 
         # 步骤1: 预上传请求
         if progress_callback:
@@ -750,7 +723,7 @@ class FileService:
                 progress_callback(30, "开始单分片上传...")
 
             upload_result = self._upload_single_part(
-                file_path=file_path,
+                file_path=file_path_obj,
                 task_id=task_id,
                 auth_info=auth_info,
                 upload_id=upload_id,
@@ -765,7 +738,7 @@ class FileService:
                 progress_callback(30, "开始多分片上传...")
 
             upload_result = self._upload_multiple_parts(
-                file_path=file_path,
+                file_path=file_path_obj,
                 task_id=task_id,
                 auth_info=auth_info,
                 upload_id=upload_id,
@@ -799,7 +772,7 @@ class FileService:
     def _calculate_file_hashes(
         self,
         file_path: Path,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> tuple[str, str]:
         """计算文件的MD5和SHA1哈希值"""
         md5_hash = hashlib.md5()
@@ -870,7 +843,7 @@ class FileService:
         bucket: str,
         callback_info: Dict[str, Any],
         mime_type: str,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """单分片上传（< 5MB文件）"""
         # 1. 获取上传授权
@@ -922,7 +895,7 @@ class FileService:
         bucket: str,
         callback_info: Dict[str, Any],
         mime_type: str,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> Dict[str, Any]:
         """多分片上传（>= 5MB文件）"""
         file_size = file_path.stat().st_size
@@ -969,7 +942,7 @@ class FileService:
                 upload_id=upload_id,
                 obj_key=obj_key,
                 bucket=bucket,
-                hash_ctx=hash_ctx
+                hash_ctx=hash_ctx  # type: ignore[attr-defined]
             )
             upload_url = auth_result.get('upload_url')
             auth_headers = auth_result.get('headers', {})
@@ -1079,14 +1052,10 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
         if hash_ctx:
             headers['X-Oss-Hash-Ctx'] = hash_ctx
 
-
-
         return {
             'upload_url': upload_url,
             'headers': headers
         }
-
-
 
     def _calculate_incremental_hash_context(
         self,
@@ -1095,8 +1064,8 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
         part_size: int
     ) -> str:
         """计算分片的增量哈希上下文"""
-        import json
         import base64
+        import json
 
         # 使用从日志中观察到的固定值作为基础
         # 这是一个简化的实现，基于实际观察到的模式
@@ -1155,7 +1124,7 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
         upload_url: str,
         headers: Dict[str, str],
         mime_type: str,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> str:
         """上传文件到OSS"""
         file_size = file_path.stat().st_size
@@ -1243,7 +1212,7 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
         headers: Dict[str, str],
         part_number: int,
         part_size: Optional[int] = None,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[Callable] = None
     ) -> str:
         """上传分片到OSS"""
         import httpx
@@ -1289,8 +1258,6 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
                 raise APIError(f"上传分片 {part_number} 成功但未获取到ETag")
 
             return etag
-
-
 
     def _finish_upload(self, task_id: str) -> Dict[str, Any]:
         """完成上传（通知夸克服务器）"""

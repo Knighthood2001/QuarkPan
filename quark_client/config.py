@@ -4,7 +4,7 @@
 
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 def get_config_dir() -> Path:
@@ -13,7 +13,7 @@ def get_config_dir() -> Path:
     config_dir = os.getenv('QUARK_CONFIG_DIR')
     if config_dir:
         return Path(config_dir)
-    
+
     # 默认使用当前目录下的config文件夹
     return Path.cwd() / 'config'
 
@@ -33,30 +33,30 @@ def get_default_headers() -> Dict[str, str]:
 
 class Config:
     """配置类"""
-    
+
     # API相关配置
     BASE_URL = 'https://drive-pc.quark.cn/1/clouddrive'
     SHARE_BASE_URL = 'https://drive.quark.cn/1/clouddrive'
     ACCOUNT_URL = 'https://pan.quark.cn/account'
-    
+
     # 默认参数
     DEFAULT_PARAMS = {
         'pr': 'ucpro',
         'fr': 'pc',
         'uc_param_str': '',
     }
-    
+
     # 请求超时设置
     REQUEST_TIMEOUT = 60.0
-    
+
     # 重试设置
     MAX_RETRIES = 3
     RETRY_DELAY = 1.0
-    
+
     # 分页设置
     DEFAULT_PAGE_SIZE = 50
     MAX_PAGE_SIZE = 100
-    
+
     # 文件下载设置
     DOWNLOAD_CHUNK_SIZE = 8192
     DOWNLOAD_DIR = 'downloads'

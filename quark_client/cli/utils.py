@@ -5,8 +5,9 @@ CLI 工具函数
 import sys
 from datetime import datetime
 from typing import Optional
-from rich.console import Console
+
 from rich import print as rprint
+from rich.console import Console
 
 from ..client import QuarkClient
 
@@ -26,13 +27,13 @@ def format_file_size(size_bytes: int) -> str:
     """格式化文件大小"""
     if size_bytes == 0:
         return "0 B"
-    
+
     size_names = ["B", "KB", "MB", "GB", "TB"]
     i = 0
     while size_bytes >= 1024 and i < len(size_names) - 1:
         size_bytes /= 1024.0
         i += 1
-    
+
     return f"{size_bytes:.2f} {size_names[i]}"
 
 
@@ -43,7 +44,7 @@ def format_timestamp(timestamp) -> str:
         if isinstance(timestamp, (int, float)):
             if timestamp > 1000000000000:  # 毫秒级时间戳
                 timestamp = timestamp / 1000
-            
+
             dt = datetime.fromtimestamp(timestamp)
             return dt.strftime("%Y-%m-%d %H:%M")
         else:
@@ -56,10 +57,10 @@ def confirm_action(message: str, default: bool = False) -> bool:
     """确认操作"""
     suffix = " [Y/n]" if default else " [y/N]"
     response = console.input(f"[yellow]{message}{suffix}[/yellow] ")
-    
+
     if not response:
         return default
-    
+
     return response.lower().startswith('y')
 
 
@@ -86,7 +87,7 @@ def print_info(message: str):
 def handle_api_error(e: Exception, operation: str = "操作"):
     """处理API错误"""
     error_msg = str(e)
-    
+
     if "认证" in error_msg or "login" in error_msg.lower():
         print_error(f"{operation}失败: 认证过期，请重新登录")
         rprint("使用 [cyan]quarkpan auth login[/cyan] 重新登录")
@@ -102,15 +103,15 @@ def validate_file_id(file_id: str) -> bool:
     """验证文件ID格式"""
     if not file_id:
         return False
-    
+
     # 夸克网盘的文件ID通常是32位十六进制字符串
     if len(file_id) == 32 and all(c in '0123456789abcdef' for c in file_id.lower()):
         return True
-    
+
     # 根目录ID
     if file_id == "0":
         return True
-    
+
     return False
 
 
@@ -118,7 +119,7 @@ def truncate_text(text: str, max_length: int = 50) -> str:
     """截断文本"""
     if len(text) <= max_length:
         return text
-    return text[:max_length-3] + "..."
+    return text[:max_length - 3] + "..."
 
 
 def get_file_type_icon(file_name: str, is_folder: bool = False) -> str:

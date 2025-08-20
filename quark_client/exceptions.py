@@ -2,6 +2,8 @@
 异常定义模块
 """
 
+from typing import Optional
+
 
 class QuarkClientError(Exception):
     """夸克客户端基础异常"""
@@ -20,8 +22,8 @@ class ConfigError(QuarkClientError):
 
 class APIError(QuarkClientError):
     """API调用异常"""
-    
-    def __init__(self, message: str, status_code: int = None, response_data: dict = None):
+
+    def __init__(self, message: str, status_code: Optional[int] = None, response_data: Optional[dict] = None):
         super().__init__(message)
         self.status_code = status_code
         self.response_data = response_data

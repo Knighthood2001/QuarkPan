@@ -4,9 +4,8 @@
 
 import typer
 from rich import print as rprint
-from typing import Optional
 
-from ..utils import get_client, print_error, print_success, print_info
+from ..utils import get_client, print_error, print_info, print_success
 
 auth_app = typer.Typer(help="🔐 认证管理")
 
@@ -57,14 +56,14 @@ def login(
 
             # 执行登录
             cookies = client.login(force_relogin=force, method=method)
-            
+
             if cookies:
                 print_success("登录成功！")
-                
+
                 # 验证登录状态
                 if client.is_logged_in():
                     print_info("登录状态验证通过")
-                    
+
                     # 尝试获取用户信息
                     try:
                         storage = client.get_storage_info()
@@ -79,7 +78,7 @@ def login(
             else:
                 print_error("登录失败，未获取到有效凭证")
                 raise typer.Exit(1)
-                
+
     except KeyboardInterrupt:
         rprint("\n[yellow]⚠️ 登录被用户取消[/yellow]")
         raise typer.Exit(1)
@@ -117,7 +116,7 @@ def status():
         with get_client(auto_login=False) as client:
             if client.is_logged_in():
                 print_success("已登录")
-                
+
                 # 尝试获取账户信息
                 try:
                     storage = client.get_storage_info()
@@ -125,9 +124,9 @@ def status():
                         data = storage['data']
                         total = data.get('total', 0)
                         used = data.get('used', 0)
-                        
+
                         from ..utils import format_file_size
-                        
+
                         rprint(f"[dim]总容量: {format_file_size(total)}[/dim]")
                         rprint(f"[dim]已使用: {format_file_size(used)}[/dim]")
                         rprint(f"[dim]剩余: {format_file_size(total - used)}[/dim]")
@@ -139,7 +138,7 @@ def status():
                 rprint("[red]❌ 未登录[/red]")
                 rprint("使用 [cyan]quarkpan auth login[/cyan] 登录")
                 raise typer.Exit(1)
-                
+
     except Exception as e:
         print_error(f"检查状态失败: {e}")
         raise typer.Exit(1)
@@ -164,16 +163,16 @@ def info():
 [bold]示例:[/bold]
   [dim]# 二维码登录[/dim]
   quarkpan auth login
-  
+
   [dim]# 手动登录[/dim]
   quarkpan auth login --manual
-  
+
   [dim]# 强制重新登录[/dim]
   quarkpan auth login --force
-  
+
   [dim]# 检查状态[/dim]
   quarkpan auth status
-  
+
   [dim]# 登出[/dim]
   quarkpan auth logout
 

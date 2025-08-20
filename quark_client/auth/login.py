@@ -3,11 +3,9 @@
 支持多种登录方式：API登录、简化登录、Playwright登录
 """
 
-import os
 import json
 import time
-from typing import Dict, List, Optional, Union
-from pathlib import Path
+from typing import Dict, List, Optional
 
 from ..config import get_config_dir
 from ..exceptions import AuthenticationError, ConfigError
@@ -31,7 +29,7 @@ class QuarkAuth:
 
         # 确保配置目录存在
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        
+
     def _save_cookies(self, cookies: List[Dict]) -> None:
         """保存cookies到本地文件"""
         try:
@@ -43,7 +41,7 @@ class QuarkAuth:
                 }, f, ensure_ascii=False, indent=2)
         except Exception as e:
             raise ConfigError(f"保存cookies失败: {e}")
-    
+
     def _load_cookies(self) -> Optional[Dict]:
         """从本地文件加载cookies"""
         try:
@@ -60,7 +58,7 @@ class QuarkAuth:
             return data
         except Exception:
             return None
-    
+
     def _get_cookies_expire_time(self, cookies: List[Dict]) -> Optional[int]:
         """获取cookies的过期时间"""
         min_expire = None
@@ -77,7 +75,7 @@ class QuarkAuth:
             min_expire = int(time.time()) + (7 * 24 * 3600)
 
         return min_expire
-    
+
     def _is_cookies_expired(self, cookie_data: Dict) -> bool:
         """检查cookies是否过期"""
         import time
@@ -92,7 +90,7 @@ class QuarkAuth:
             return age_seconds > (7 * 24 * 3600)
 
         return current_time > expires_at
-    
+
     def _cookies_to_dict(self, cookies: List[Dict]) -> Dict[str, str]:
         """将cookies列表转换为字典格式"""
         result = {}
@@ -100,12 +98,12 @@ class QuarkAuth:
             # 包含所有cookie，不只是quark域名的
             result[cookie['name']] = cookie['value']
         return result
-    
+
     def _cookies_to_string(self, cookies: List[Dict]) -> str:
         """将cookies列表转换为字符串格式"""
         cookie_dict = self._cookies_to_dict(cookies)
         return '; '.join([f"{key}={value}" for key, value in cookie_dict.items()])
-    
+
     def login(self, force_relogin: bool = False, use_qr: bool = True, method: str = "auto") -> str:
         """
         执行多层级登录流程
@@ -210,8 +208,6 @@ class QuarkAuth:
         except Exception as e:
             raise AuthenticationError(f"简化登录失败: {e}")
 
-
-
     def _parse_cookie_string(self, cookie_string: str) -> List[Dict]:
         """将cookie字符串解析为列表格式"""
         cookies = []
@@ -231,7 +227,7 @@ class QuarkAuth:
         # 检查是否包含夸克相关的cookies
         quark_cookies = [c for c in cookies if 'quark' in c.get('domain', '')]
         return len(quark_cookies) > 0
-    
+
     def get_cookies(self, force_relogin: bool = False) -> str:
         """
         获取有效的cookies字符串
@@ -261,7 +257,7 @@ class QuarkAuth:
 
         # 如果没有有效的cookies或强制重新登录，则执行登录
         return self.login(force_relogin)
-    
+
     def logout(self) -> None:
         """登出并清除本地cookies"""
         try:
@@ -270,7 +266,7 @@ class QuarkAuth:
             self.logger.debug("已清除登录信息")
         except Exception as e:
             self.logger.error(f"清除登录信息时出错: {e}")
-    
+
     def is_logged_in(self) -> bool:
         """检查是否已登录"""
         saved_cookies = self._load_cookies()

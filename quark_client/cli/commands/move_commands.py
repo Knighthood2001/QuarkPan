@@ -2,11 +2,12 @@
 移动文件相关命令
 """
 
-import typer
-from typing import List, Optional
-from rich.console import Console
+from typing import List
 
-from ..utils import print_info, print_error, print_success, print_warning, get_client, handle_api_error
+import typer
+
+from ..utils import (get_client, handle_api_error, print_error, print_info,
+                     print_success)
 
 
 def move_files(
@@ -15,14 +16,12 @@ def move_files(
     use_id: bool = False
 ):
     """移动文件到指定文件夹"""
-    console = Console()
-    
     try:
         with get_client() as client:
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
-            
+
             # 创建路径解析器
             from ...services.name_resolver import NameResolver
             resolver = NameResolver(client.files)
@@ -54,44 +53,44 @@ def move_files(
                     if target_type != 'folder':
                         print_error(f"目标路径不是文件夹: {target_path}")
                         raise typer.Exit(1)
-                    
+
                     print_info(f"目标文件夹: {target_path} -> {target_folder_id}")
                 except Exception as e:
                     print_error(f"无法解析目标路径 '{target_path}': {e}")
                     raise typer.Exit(1)
-            
+
             # 显示移动信息
             print_info("📦 开始移动文件...")
             print_info(f"   源文件数量: {len(file_ids)}")
             print_info(f"   目标文件夹: {target_path if not use_id else target_folder_id}")
-            
+
             # 执行移动
             result = client.move_files(
                 file_ids=file_ids,
                 target_folder_id=target_folder_id
             )
-            
+
             if result and result.get('status') == 200:
                 data = result.get('data', {})
                 task_id = data.get('task_id')
                 finish = data.get('finish', False)
-                
+
                 if finish:
                     print_success("✅ 文件移动完成!")
                 else:
                     print_success(f"✅ 文件移动完成! (任务ID: {task_id})")
-                
+
                 # 显示移动结果
                 print_info(f"\n📊 移动结果:")
                 print_info(f"   移动文件数: {len(file_ids)}")
                 print_info(f"   状态: {'同步完成' if finish else '异步完成'}")
-                
+
                 if not use_id:
                     print_info(f"\n💡 提示: 文件已移动到 '{target_path}'")
             else:
                 print_error("移动失败")
                 raise typer.Exit(1)
-            
+
     except Exception as e:
         handle_api_error(e, "移动文件")
         raise typer.Exit(1)
@@ -105,31 +104,39 @@ def move_to_folder(
     use_id: bool = False
 ):
     """移动文件到指定名称的文件夹（如果不存在则创建）"""
+    # TODO: 实现 use_id 参数功能
+    _ = use_id  # 参数将在未来实现中使用
     try:
         with get_client() as client:
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
-            
+
             # 构造目标文件夹路径
             if parent_folder == "/":
                 target_folder_path = f"/{folder_name}"
             else:
                 target_folder_path = f"{parent_folder.rstrip('/')}/{folder_name}"
-            
+
             print_info(f"目标文件夹路径: {target_folder_path}")
-            
-            # 检查目标文件夹是否存在
+
+            # 初始化路径解析器
             try:
                 from ...services.name_resolver import NameResolver
                 resolver = NameResolver(client.files)
+            except Exception as e:
+                print_error(f"无法初始化路径解析器: {e}")
+                raise typer.Exit(1)
+
+            # 检查目标文件夹是否存在
+            try:
                 target_folder_id, _ = resolver.resolve_path(target_folder_path)
                 print_info(f"找到现有文件夹: {target_folder_path}")
             except:
                 if create_folder:
                     # 创建文件夹
                     print_info(f"创建新文件夹: {folder_name}")
-                    
+
                     # 解析父文件夹ID
                     if parent_folder == "/":
                         parent_folder_id = "0"
@@ -139,7 +146,7 @@ def move_to_folder(
                         except Exception as e:
                             print_error(f"无法解析父文件夹路径 '{parent_folder}': {e}")
                             raise typer.Exit(1)
-                    
+
                     # 创建文件夹
                     create_result = client.create_folder(folder_name, parent_folder_id)
                     if create_result and create_result.get('status') == 200:
@@ -152,10 +159,10 @@ def move_to_folder(
                     print_error(f"目标文件夹不存在: {target_folder_path}")
                     print_info("使用 --create-folder 自动创建文件夹")
                     raise typer.Exit(1)
-            
+
             # 调用移动函数
             move_files(source_paths, target_folder_id, use_id=True)
-            
+
     except Exception as e:
         handle_api_error(e, "移动文件到文件夹")
         raise typer.Exit(1)

@@ -4,25 +4,28 @@ QuarkPan CLI 主入口
 """
 
 import logging
+from typing import List, Optional
+
 import typer
+from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
-from rich import print as rprint
-from typing import Optional, List
 
 # 设置CLI模式下的日志级别为WARNING，减少日志输出
 logging.getLogger("quark_client").setLevel(logging.WARNING)
 
 from .commands.auth import auth_app
-
-from .commands.search import search_app
+from .commands.basic_fileops import (browse_folder, create_folder,
+                                     delete_files, file_info,
+                                     get_download_link, goto_folder,
+                                     rename_file, upload_file)
 from .commands.download import download_app
-from .commands.basic_fileops import create_folder, delete_files, rename_file, file_info, get_download_link, browse_folder, goto_folder, upload_file
-from .commands.share_commands import create_share, list_my_shares, save_share
 from .commands.move_commands import move_files, move_to_folder
-
+from .commands.search import search_app
+from .commands.share_commands import create_share, list_my_shares, save_share
 from .interactive import start_interactive
-from .utils import get_client, format_file_size, format_timestamp, get_folder_name_by_id
+from .utils import (format_file_size, format_timestamp, get_client,
+                    get_folder_name_by_id)
 
 # 创建主应用
 app = typer.Typer(
@@ -37,7 +40,6 @@ app.add_typer(auth_app, name="auth", help="🔐 认证管理")
 
 app.add_typer(search_app, name="search", help="🔍 文件搜索")
 app.add_typer(download_app, name="download", help="📥 文件下载")
-
 
 
 console = Console()
@@ -208,9 +210,9 @@ def status():
                 rprint("[red]❌ 未登录[/red]")
                 rprint("请使用 [bold]quarkpan auth login[/bold] 登录")
                 raise typer.Exit(1)
-            
+
             rprint("[green]✅ 已登录[/green]")
-            
+
             # 获取存储信息
             try:
                 storage = client.get_storage_info()
@@ -219,25 +221,25 @@ def status():
                     total = data.get('total', 0)
                     used = data.get('used', 0)
                     free = total - used
-                    
+
                     # 创建存储信息表格
                     table = Table(title="💾 存储空间信息")
                     table.add_column("项目", style="cyan")
                     table.add_column("大小", style="green")
                     table.add_column("百分比", style="yellow")
-                    
+
                     usage_percent = (used / total * 100) if total > 0 else 0
-                    
+
                     table.add_row("总容量", format_file_size(total), "100%")
                     table.add_row("已使用", format_file_size(used), f"{usage_percent:.1f}%")
                     table.add_row("剩余", format_file_size(free), f"{100-usage_percent:.1f}%")
-                    
+
                     console.print(table)
                 else:
                     rprint("[yellow]⚠️ 无法获取存储信息[/yellow]")
             except Exception as e:
                 rprint(f"[yellow]⚠️ 获取存储信息失败: {e}[/yellow]")
-            
+
             # 获取根目录文件数量
             try:
                 files = client.list_files(size=1)
@@ -248,7 +250,7 @@ def status():
                     rprint("\n[yellow]⚠️ 无法获取文件信息[/yellow]")
             except Exception as e:
                 rprint(f"\n[yellow]⚠️ 获取文件信息失败: {e}[/yellow]")
-                
+
     except Exception as e:
         rprint(f"[red]❌ 错误: {e}[/red]")
         raise typer.Exit(1)
@@ -271,7 +273,7 @@ def ls(
             if not client.is_logged_in():
                 rprint("[red]❌ 未登录，请先使用 quarkpan auth login 登录[/red]")
                 raise typer.Exit(1)
-            
+
             # 根据过滤选项选择API调用
             if folders_only or files_only:
                 files = client.list_files_with_details(
@@ -291,22 +293,22 @@ def ls(
                     sort_field=sort_field,
                     sort_order=sort_order
                 )
-            
+
             if not files or 'data' not in files:
                 rprint("[red]❌ 无法获取文件列表[/red]")
                 raise typer.Exit(1)
-            
+
             file_list = files['data'].get('list', [])
             total = files['data'].get('total', 0)
-            
+
             # 显示标题
             folder_name = get_folder_name_by_id(client, folder_id)
             rprint(f"\n📂 [bold]{folder_name}[/bold] (第{page}页，共{total}个项目)")
-            
+
             if not file_list:
                 rprint("[yellow]📂 文件夹为空[/yellow]")
                 return
-            
+
             if show_details:
                 # 详细表格视图
                 table = Table()
@@ -315,29 +317,29 @@ def ls(
                 table.add_column("名称", style="white")
                 table.add_column("大小", style="green")
                 table.add_column("修改时间", style="yellow")
-                
-                for i, file_info in enumerate(file_list, (page-1)*size + 1):
+
+                for i, file_info in enumerate(file_list, (page - 1) * size + 1):
                     name = file_info.get('file_name', '未知')
                     size_bytes = file_info.get('size', 0)
                     file_type = file_info.get('file_type', 0)
                     updated_at = file_info.get('updated_at', '')
-                    
+
                     type_icon = "📁" if file_type == 0 else "📄"
                     size_str = "-" if file_type == 0 else format_file_size(size_bytes)
                     time_str = format_timestamp(updated_at) if updated_at else "-"
-                    
+
                     table.add_row(str(i), type_icon, name, size_str, time_str)
-                
+
                 console.print(table)
             else:
                 # 简洁列表视图
-                for i, file_info in enumerate(file_list, (page-1)*size + 1):
+                for i, file_info in enumerate(file_list, (page - 1) * size + 1):
                     name = file_info.get('file_name', '未知')
                     file_type = file_info.get('file_type', 0)
                     type_icon = "📁" if file_type == 0 else "📄"
-                    
+
                     rprint(f"  {i:2d}. {type_icon} {name}")
-            
+
             # 显示分页信息
             if total > size:
                 total_pages = (total + size - 1) // size
@@ -448,12 +450,12 @@ def info():
   [cyan]quarkpan auth logout[/cyan]    - 登出
   [cyan]quarkpan status[/cyan]         - 显示状态信息
   [cyan]quarkpan ls[/cyan]             - 列出文件和文件夹
-  
+
 [bold]高级功能:[/bold]
   [cyan]quarkpan browse[/cyan]         - 交互式浏览文件夹
   [cyan]quarkpan goto <target>[/cyan]  - 智能进入文件夹
   [cyan]quarkpan fileinfo <id>[/cyan]  - 获取文件详细信息
-  
+
 [bold]搜索功能:[/bold]
   [cyan]quarkpan search "关键词"[/cyan]  - 基础搜索
   [cyan]quarkpan search --ext pdf[/cyan] - 按扩展名搜索
@@ -473,11 +475,11 @@ def info():
 
 [bold]文件上传:[/bold]
   [cyan]quarkpan upload <file_path>[/cyan] - 上传文件
-  
+
 [bold]示例:[/bold]
   [dim]# 登录[/dim]
   quarkpan auth login
-  
+
   [dim]# 查看根目录[/dim]
   quarkpan ls
 

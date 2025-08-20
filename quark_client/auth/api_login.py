@@ -1,22 +1,20 @@
 """
 基于API的登录模块
-通过直接调用API获取二维码，无需Playwright
 """
 
-import time
 import json
-import base64
-import uuid
-import threading
 import sys
+import threading
+import time
+import uuid
 from typing import Dict, Optional, Tuple
-from pathlib import Path
+
 import httpx
 
 from ..config import get_config_dir
 from ..exceptions import AuthenticationError
-from ..utils.qr_code import display_qr_code
 from ..utils.logger import get_logger
+from ..utils.qr_code import display_qr_code
 
 
 class APILogin:
@@ -264,12 +262,11 @@ class APILogin:
         """生成二维码图片"""
         try:
             import qrcode
-            from PIL import Image
 
             # 生成二维码
             qr = qrcode.QRCode(
                 version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                error_correction=qrcode.ERROR_CORRECT_L,
                 box_size=10,
                 border=4,
             )
@@ -281,7 +278,8 @@ class APILogin:
 
             # 保存图片
             qr_image_path = self.config_dir / "qr_code.png"
-            img.save(qr_image_path)
+            with open(qr_image_path, 'wb') as f:
+                img.save(f)
 
             self.logger.debug(f"二维码已保存到: {qr_image_path}")
             return str(qr_image_path)

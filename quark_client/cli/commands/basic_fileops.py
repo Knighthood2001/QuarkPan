@@ -2,11 +2,13 @@
 基础文件操作命令
 """
 
+from typing import List, Optional
+
 import typer
-from typing import List
 from rich.prompt import Confirm
 
-from ..utils import print_info, print_error, print_success, print_warning, get_client, handle_api_error
+from ..utils import (get_client, handle_api_error, print_error, print_info,
+                     print_success, print_warning)
 
 
 def create_folder(folder_name: str, parent_id: str = "0"):
@@ -16,14 +18,14 @@ def create_folder(folder_name: str, parent_id: str = "0"):
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
-            
+
             print_info(f"正在创建文件夹: {folder_name}")
-            
+
             result = client.create_folder(folder_name, parent_id)
-            
+
             if result and result.get('status') == 200:
                 print_success(f"✅ 文件夹创建成功: {folder_name}")
-                
+
                 # 显示创建的文件夹信息
                 if 'data' in result:
                     folder_info = result['data']
@@ -34,7 +36,7 @@ def create_folder(folder_name: str, parent_id: str = "0"):
                 error_msg = result.get('message', '未知错误')
                 print_error(f"创建文件夹失败: {error_msg}")
                 raise typer.Exit(1)
-            
+
     except Exception as e:
         handle_api_error(e, "创建文件夹")
         raise typer.Exit(1)
@@ -47,13 +49,13 @@ def delete_files(paths: List[str], force: bool = False, use_id: bool = False):
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
-            
+
             # 解析路径或使用ID
             if use_id:
                 file_ids = paths
                 # 显示要删除的文件信息
                 print_warning(f"准备删除 {len(file_ids)} 个文件/文件夹:")
-                
+
                 for i, file_id in enumerate(file_ids, 1):
                     try:
                         file_info = client.get_file_info(file_id)
@@ -65,7 +67,7 @@ def delete_files(paths: List[str], force: bool = False, use_id: bool = False):
             else:
                 # 使用路径解析
                 print_warning(f"准备删除 {len(paths)} 个文件/文件夹:")
-                
+
                 resolved_items = []
                 for i, path in enumerate(paths, 1):
                     try:
@@ -78,29 +80,29 @@ def delete_files(paths: List[str], force: bool = False, use_id: bool = False):
                     except Exception as e:
                         print_error(f"  {i}. 无法解析路径 '{path}': {e}")
                         raise typer.Exit(1)
-                
+
                 file_ids = resolved_items
-            
+
             # 确认删除
             if not force:
                 if not Confirm.ask("\n确定要删除这些文件/文件夹吗？"):
                     print_info("取消删除操作")
                     return
-            
+
             print_info("正在删除文件...")
-            
+
             if use_id:
                 result = client.delete_files(file_ids)
             else:
                 result = client.delete_files_by_name(paths)
-            
+
             if result and result.get('status') == 200:
                 print_success(f"✅ 成功删除 {len(file_ids)} 个文件/文件夹")
             else:
                 error_msg = result.get('message', '未知错误')
                 print_error(f"删除失败: {error_msg}")
                 raise typer.Exit(1)
-            
+
     except Exception as e:
         handle_api_error(e, "删除文件")
         raise typer.Exit(1)
@@ -113,7 +115,7 @@ def rename_file(path: str, new_name: str, use_id: bool = False):
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
                 raise typer.Exit(1)
-            
+
             # 解析路径或使用ID
             if use_id:
                 file_id = path
@@ -126,7 +128,7 @@ def rename_file(path: str, new_name: str, use_id: bool = False):
                 except:
                     print_info(f"文件ID: {file_id}")
                     print_info(f"新名称: {new_name}")
-                
+
                 result = client.rename_file(file_id, new_name)
             else:
                 try:
@@ -139,18 +141,18 @@ def rename_file(path: str, new_name: str, use_id: bool = False):
                 except Exception as e:
                     print_error(f"无法解析路径 '{path}': {e}")
                     raise typer.Exit(1)
-                
+
                 result = client.rename_file_by_name(path, new_name)
-            
+
             print_info("正在重命名...")
-            
+
             if result and result.get('status') == 200:
                 print_success(f"✅ 重命名成功: {new_name}")
             else:
                 error_msg = result.get('message', '未知错误')
                 print_error(f"重命名失败: {error_msg}")
                 raise typer.Exit(1)
-            
+
     except Exception as e:
         handle_api_error(e, "重命名文件")
         raise typer.Exit(1)
@@ -169,8 +171,8 @@ def file_info(file_id: str):
             file_info = client.get_file_info(file_id)
 
             if file_info:
-                from rich.table import Table
                 from rich.console import Console
+                from rich.table import Table
 
                 console = Console()
                 table = Table(title=f"文件信息")
@@ -197,12 +199,16 @@ def file_info(file_id: str):
 
 def browse_folder(folder_id: str = "0"):
     """交互式文件夹浏览"""
+    # TODO: 实现交互式浏览功能
+    _ = folder_id  # 参数将在未来实现中使用
     print_warning("交互式浏览功能正在开发中...")
     print_info("请使用 'quarkpan interactive' 启动完整的交互式模式")
 
 
 def goto_folder(target: str, current_folder: str = "0"):
     """智能进入文件夹"""
+    # TODO: 实现智能导航功能
+    _ = target, current_folder  # 参数将在未来实现中使用
     print_warning("智能导航功能正在开发中...")
     print_info("请使用 'quarkpan interactive' 启动完整的交互式模式")
 
@@ -268,7 +274,7 @@ def _resolve_folder_path(client, folder_path: str, create_dirs: bool = False) ->
 
         return folder_id
 
-    except Exception as e:
+    except Exception:
         if not create_dirs:
             raise ValueError(f"文件夹路径不存在: {folder_path}。使用 --create-dirs 自动创建")
 
@@ -326,12 +332,14 @@ def _create_folder_path(client, folder_path: str) -> str:
     return current_folder_id
 
 
-def upload_file(file_path: str, parent_folder_id: str = "0", folder_path: str = None, create_dirs: bool = False):
+def upload_file(file_path: str, parent_folder_id: str = "0", folder_path: Optional[str] = None, create_dirs: bool = False):
     """上传文件到夸克网盘"""
-    import os
     from pathlib import Path
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn
+
     from rich.console import Console
+    from rich.progress import (BarColumn, Progress, SpinnerColumn,
+                               TaskProgressColumn, TextColumn,
+                               TimeRemainingColumn)
 
     console = Console()
 
