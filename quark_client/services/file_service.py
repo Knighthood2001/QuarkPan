@@ -753,7 +753,7 @@ class FileService:
         if progress_callback:
             progress_callback(95, "完成上传...")
 
-        finish_result = self._finish_upload(task_id)
+        finish_result = self._finish_upload(task_id, obj_key)
 
         if progress_callback:
             progress_callback(100, "上传完成")
@@ -877,13 +877,57 @@ class FileService:
             progress_callback=progress_callback
         )
 
-        # 单分片上传完成，无需OSS合并步骤
+        # 3. 获取POST完成合并授权
+        if progress_callback:
+            progress_callback(70, "获取POST合并授权...")
 
-        return {
-            'strategy': 'single_part',
-            'parts': 1,
-            'etag': etag
-        }
+        # 构建XML数据
+        xml_data = f'<?xml version="1.0" encoding="UTF-8"?>\n<CompleteMultipartUpload>\n<Part>\n<PartNumber>1</PartNumber>\n<ETag>"{etag}"</ETag>\n</Part>\n</CompleteMultipartUpload>'
+
+        try:
+            post_auth_result = self._get_complete_upload_auth(
+                task_id=task_id,
+                mime_type=mime_type,
+                auth_info=auth_info,
+                upload_id=upload_id,
+                obj_key=obj_key,
+                bucket=bucket,
+                xml_data=xml_data,
+                callback_info=callback_info
+            )
+
+            post_upload_url = post_auth_result.get('upload_url')
+            post_auth_headers = post_auth_result.get('headers', {})
+
+            # 4. POST完成合并
+            if progress_callback:
+                progress_callback(85, "POST完成合并...")
+
+            import httpx
+            with httpx.Client(timeout=300.0) as client:
+                response = client.post(
+                    post_upload_url,
+                    content=xml_data,
+                    headers=post_auth_headers
+                )
+
+                if response.status_code == 200:
+                    # POST完成合并成功，callback也成功
+                    pass
+                elif response.status_code == 203:
+                    # POST完成合并成功，但callback失败（文件已成功上传）
+                    pass
+                else:
+                    raise APIError(f"POST完成合并失败: {response.status_code}, {response.text}")
+
+            return {
+                'strategy': 'single_part_complete',
+                'parts': 1,
+                'etag': etag
+            }
+
+        except Exception as e:
+            raise e
 
     def _upload_multiple_parts(
         self,
@@ -1035,9 +1079,9 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
         # 从响应中获取授权密钥
         auth_key = auth_data.get('auth_key', '')
 
-        # 构造上传URL（基于预上传响应中的信息）
-        # 格式：https://ul-zb.pds.quark.cn/{obj_key}?partNumber={part_number}&uploadId={upload_id}
-        upload_url = f"https://{bucket}.pds.quark.cn/{obj_key}?partNumber={part_number}&uploadId={upload_id}"
+        # 构造上传URL（使用阿里云OSS域名格式）
+        # 格式：https://{bucket}.oss-cn-shenzhen.aliyuncs.com/{obj_key}?partNumber={part_number}&uploadId={upload_id}
+        upload_url = f"https://{bucket}.oss-cn-shenzhen.aliyuncs.com/{obj_key}?partNumber={part_number}&uploadId={upload_id}"
 
         headers = {
             'Content-Type': mime_type,
@@ -1051,6 +1095,179 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
         # 添加增量哈希头
         if hash_ctx:
             headers['X-Oss-Hash-Ctx'] = hash_ctx
+
+        return {
+            'upload_url': upload_url,
+            'headers': headers
+        }
+
+    def _get_complete_upload_auth(
+        self,
+        task_id: str,
+        mime_type: str,
+        auth_info: str = "",
+        upload_id: str = "",
+        obj_key: str = "",
+        bucket: str = "ul-zb",
+        xml_data: str = "",
+        callback_info: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """获取POST完成合并的上传授权"""
+        # 生成OSS日期 - 确保与PUT请求时间接近
+        from datetime import datetime
+        import time
+
+        # 添加短暂延迟，模拟真实的时间间隔
+        time.sleep(0.1)
+
+        oss_date = datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
+
+        # 计算XML数据的MD5
+        import hashlib
+        import base64
+        xml_md5 = base64.b64encode(hashlib.md5(xml_data.encode('utf-8')).digest()).decode('utf-8')
+
+        # 使用预上传响应中提供的callback信息
+        if not callback_info:
+            raise APIError("callback信息缺失，需要从预上传响应中获取")
+
+        import json
+        callback_b64 = base64.b64encode(json.dumps(callback_info, separators=(',', ':')).encode('utf-8')).decode('utf-8')
+
+        # 构建POST请求的auth_meta
+        auth_meta = f"""POST
+{xml_md5}
+application/xml
+{oss_date}
+x-oss-callback:{callback_b64}
+x-oss-date:{oss_date}
+x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome 139.0.0.0 on OS X 10.15.7 64-bit
+/{bucket}/{obj_key}?uploadId={upload_id}"""
+
+        # 先发送OPTIONS请求
+        import httpx
+        options_headers = {
+            'accept': '*/*',
+            'accept-language': 'zh-CN,zh;q=0.9',
+            'access-control-request-headers': 'content-type',
+            'access-control-request-method': 'POST',
+            'cache-control': 'no-cache',
+            'origin': 'https://pan.quark.cn',
+            'pragma': 'no-cache',
+            'priority': 'u=1, i',
+            'referer': 'https://pan.quark.cn/',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
+        }
+
+        options_url = "https://drive-pc.quark.cn/1/clouddrive/file/upload/auth?pr=ucpro&fr=pc&uc_param_str="
+
+        with httpx.Client(timeout=30.0) as client:
+            options_response = client.options(options_url, headers=options_headers)
+
+        # 调用上传授权API
+        data = {
+            "task_id": task_id,
+            "auth_meta": auth_meta,
+            "auth_info": auth_info
+        }
+
+        auth_result = self.api_client.post("file/upload/auth", json_data=data)
+        if auth_result.get('status') != 200:
+            raise APIError(f"获取POST上传授权失败: {auth_result}")
+
+        # 解析授权结果
+        auth_data = auth_result.get('data', {})
+        auth_key = auth_data.get('auth_key', '')
+
+        # 构造上传URL（不带partNumber，使用阿里云OSS域名格式）
+        upload_url = f"https://{bucket}.oss-cn-shenzhen.aliyuncs.com/{obj_key}?uploadId={upload_id}"
+
+        # 构造headers
+        headers = {
+            'Content-Type': 'application/xml',
+            'x-oss-date': oss_date,
+            'x-oss-user-agent': 'aliyun-sdk-js/1.0.0 Chrome 139.0.0.0 on OS X 10.15.7 64-bit',
+            'authorization': auth_key,
+            'x-oss-callback': callback_b64,
+            'Content-MD5': xml_md5
+        }
+
+        return {
+            'upload_url': upload_url,
+            'headers': headers
+        }
+
+    def _get_complete_upload_auth_fixed_time(
+        self,
+        task_id: str,
+        mime_type: str,
+        auth_info: str = "",
+        upload_id: str = "",
+        obj_key: str = "",
+        bucket: str = "ul-zb",
+        xml_data: str = "",
+        callback_info: Dict[str, Any] = None,
+        fixed_time: str = ""
+    ) -> Dict[str, Any]:
+        """获取POST完成合并的上传授权（使用固定时间）"""
+
+        # 使用固定时间而不是当前时间
+        oss_date = fixed_time
+
+        # 计算XML数据的MD5
+        import hashlib
+        import base64
+        xml_md5 = base64.b64encode(hashlib.md5(xml_data.encode('utf-8')).digest()).decode('utf-8')
+
+        # 使用预上传响应中提供的callback信息
+        if not callback_info:
+            raise APIError("callback信息缺失，需要从预上传响应中获取")
+
+        import json
+        callback_b64 = base64.b64encode(json.dumps(callback_info, separators=(',', ':')).encode('utf-8')).decode('utf-8')
+
+        # 构建POST请求的auth_meta
+        auth_meta = f"""POST
+{xml_md5}
+application/xml
+{oss_date}
+x-oss-callback:{callback_b64}
+x-oss-date:{oss_date}
+x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome 139.0.0.0 on OS X 10.15.7 64-bit
+/{bucket}/{obj_key}?uploadId={upload_id}"""
+
+
+
+        # 调用上传授权API
+        data = {
+            "task_id": task_id,
+            "auth_meta": auth_meta,
+            "auth_info": auth_info
+        }
+
+        auth_result = self.api_client.post("file/upload/auth", json_data=data)
+        if auth_result.get('status') != 200:
+            raise APIError(f"获取POST上传授权失败: {auth_result}")
+
+        # 解析授权结果
+        auth_data = auth_result.get('data', {})
+        auth_key = auth_data.get('auth_key', '')
+
+        # 构造上传URL（不带partNumber，使用阿里云OSS域名格式）
+        upload_url = f"https://{bucket}.oss-cn-shenzhen.aliyuncs.com/{obj_key}?uploadId={upload_id}"
+
+        # 构造headers
+        headers = {
+            'Content-Type': 'application/xml',
+            'x-oss-date': oss_date,
+            'x-oss-user-agent': 'aliyun-sdk-js/1.0.0 Chrome 139.0.0.0 on OS X 10.15.7 64-bit',
+            'authorization': auth_key,
+            'x-oss-callback': callback_b64,
+            'Content-MD5': xml_md5
+        }
 
         return {
             'upload_url': upload_url,
@@ -1259,11 +1476,15 @@ x-oss-user-agent:aliyun-sdk-js/1.0.0 Chrome Mobile 139.0.0.0 on Google Nexus 5 (
 
             return etag
 
-    def _finish_upload(self, task_id: str) -> Dict[str, Any]:
+    def _finish_upload(self, task_id: str, obj_key: str = None) -> Dict[str, Any]:
         """完成上传（通知夸克服务器）"""
         data = {
             "task_id": task_id
         }
+
+        # 如果提供了obj_key，添加到请求中
+        if obj_key:
+            data["obj_key"] = obj_key
 
         response = self.api_client.post(
             "file/upload/finish",
