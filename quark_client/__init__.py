@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 夸克网盘 Python 客户端
 
