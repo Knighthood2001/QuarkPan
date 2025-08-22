@@ -190,7 +190,7 @@ def demo_file_browsing():
                 # 搜索PDF文件
                 pdf_results = client.search_files_advanced(
                     keyword="",
-                    file_types=["pdf"],
+                    file_extensions=["pdf"],
                     size=5
                 )
                 display_file_list(pdf_results, "PDF文件 (前5个)", show_details=False)
