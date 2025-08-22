@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 夸克网盘客户端主类
 """
@@ -6,7 +7,9 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .auth import QuarkAuth
 from .core.api_client import QuarkAPIClient
+from .services.file_download_service import FileDownloadService
 from .services.file_service import FileService
+from .services.file_upload_service import FileUploadService
 from .services.name_resolver import NameResolver
 from .services.share_service import ShareService
 
@@ -27,6 +30,8 @@ class QuarkClient:
 
         # 初始化服务
         self.files = FileService(self.api_client)
+        self.upload = FileUploadService(self.api_client)
+        self.download = FileDownloadService(self.api_client)
         self.shares = ShareService(self.api_client)
         self.name_resolver = NameResolver(self.files)
 
@@ -80,19 +85,19 @@ class QuarkClient:
 
     def get_download_url(self, file_id: str) -> str:
         """获取下载链接"""
-        return self.files.get_download_url(file_id)
+        return self.download.get_download_url(file_id)
 
     def get_download_urls(self, file_ids: List[str]) -> Dict[str, str]:
         """批量获取下载链接"""
-        return self.files.get_download_urls(file_ids)
+        return self.download.get_download_urls(file_ids)
 
     def download_file(self, file_id: str, save_path: Optional[str] = None, **kwargs) -> str:
         """下载文件"""
-        return self.files.download_file(file_id, save_path, **kwargs)
+        return self.download.download_file(file_id, save_path, **kwargs)
 
     def download_files(self, file_ids: List[str], save_dir: str = "downloads", **kwargs) -> List[str]:
         """批量下载文件"""
-        return self.files.download_files(file_ids, save_dir, **kwargs)
+        return self.download.download_files(file_ids, save_dir, **kwargs)
 
     # 基于名称的操作方法
     def resolve_path(self, path: str, current_folder_id: str = "0") -> tuple:
@@ -123,7 +128,8 @@ class QuarkClient:
 
         return self.move_files(file_ids, target_id)
 
-    def download_file_by_name(self, path: str, save_path: Optional[str] = None, current_folder_id: str = "0", **kwargs) -> str:
+    def download_file_by_name(
+            self, path: str, save_path: Optional[str] = None, current_folder_id: str = "0", **kwargs) -> str:
         """根据文件名下载文件"""
         file_id, file_type = self.name_resolver.resolve_path(path, current_folder_id)
         if file_type != 'file':
@@ -138,8 +144,6 @@ class QuarkClient:
     def get_real_file_name(self, file_id: str) -> Optional[str]:
         """获取文件的真实名称（从列表缓存中获取）"""
         return self.name_resolver.get_real_name(file_id)
-
-
 
     def list_files_with_details(self, **kwargs) -> Dict[str, Any]:
         """获取文件列表（增强版）"""
@@ -157,17 +161,10 @@ class QuarkClient:
         """删除文件"""
         return self.files.delete_files(file_ids)
 
-
-
     def rename_file(self, file_id: str, new_name: str) -> Dict[str, Any]:
         """重命名文件"""
         return self.files.rename_file(file_id, new_name)
 
-
-
-
-
-    # 高级功能
     def batch_save_shares(
         self,
         share_urls: List[str],
@@ -268,7 +265,7 @@ class QuarkClient:
         Returns:
             上传结果字典
         """
-        return self.files.upload_file(file_path, parent_folder_id, progress_callback)
+        return self.upload.upload_file(file_path, parent_folder_id, progress_callback)
 
     # 分享相关方法
     def create_share(
