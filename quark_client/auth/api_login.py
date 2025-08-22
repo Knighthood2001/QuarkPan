@@ -14,7 +14,7 @@ import httpx
 from ..config import get_config_dir
 from ..exceptions import AuthenticationError
 from ..utils.logger import get_logger
-from ..utils.qr_code import display_qr_code
+from ..utils.qr_code import display_qr_from_url
 
 
 class APILogin:
@@ -91,12 +91,12 @@ class APILogin:
         sys.stdout.write("\r" + " " * 50 + "\r")
         sys.stdout.flush()
 
-    def get_qr_code(self) -> Tuple[str, str, str]:
+    def get_qr_code(self) -> Tuple[str, str]:
         """
         获取登录二维码
 
         Returns:
-            (qr_token, qr_url, qr_image_path) 二维码token、URL和图片路径
+            (qr_token, qr_url) 二维码token和URL
         """
         try:
             # 使用发现的真实API
@@ -127,10 +127,7 @@ class APILogin:
                         # 基于实际抓包分析的URL格式
                         qr_url = self._build_qr_url(token)
 
-                        # 生成二维码图片
-                        qr_image_path = self._generate_qr_image(qr_url)
-
-                        return token, qr_url, qr_image_path
+                        return token, qr_url
                     else:
                         raise AuthenticationError("响应中未找到token")
                 else:
@@ -202,12 +199,9 @@ class APILogin:
         if not qr_url:
             raise AuthenticationError("响应中未找到二维码URL")
 
-        # 生成二维码图片
-        qr_image_path = self._generate_qr_image(qr_url)
+        return qr_token or str(uuid.uuid4()), qr_url
 
-        return qr_token or str(uuid.uuid4()), qr_url, qr_image_path
-
-    def _fallback_get_qr_code(self) -> Tuple[str, str, str]:
+    def _fallback_get_qr_code(self) -> Tuple[str, str]:
         """备用方案：访问登录页面获取二维码"""
         try:
             # 访问夸克网盘登录页面
@@ -257,42 +251,6 @@ class APILogin:
 
         except Exception as e:
             raise AuthenticationError(f"备用获取二维码方案失败: {e}")
-
-    def _generate_qr_image(self, qr_url: str) -> str:
-        """生成二维码图片"""
-        try:
-            import qrcode
-
-            # 生成二维码
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(qr_url)
-            qr.make(fit=True)
-
-            # 创建图片
-            img = qr.make_image(fill_color="black", back_color="white")
-
-            # 保存图片
-            qr_image_path = self.config_dir / "qr_code.png"
-            with open(qr_image_path, 'wb') as f:
-                img.save(f)
-
-            self.logger.debug(f"二维码已保存到: {qr_image_path}")
-            return str(qr_image_path)
-
-        except ImportError:
-            # 如果没有qrcode库，创建一个简单的文本文件
-            qr_text_path = self.config_dir / "qr_code.txt"
-            with open(qr_text_path, 'w', encoding='utf-8') as f:
-                f.write(f"二维码URL: {qr_url}\n")
-                f.write("请在浏览器中打开此URL或使用手机扫描二维码登录")
-
-            self.logger.info(f"二维码URL已保存到: {qr_text_path}")
-            return str(qr_text_path)
 
     def check_login_status(self, qr_token: str) -> Optional[Dict]:
         """
@@ -515,16 +473,16 @@ class APILogin:
         """
         try:
             # 获取二维码
-            qr_token, _, qr_image_path = self.get_qr_code()
+            qr_token, qr_url = self.get_qr_code()
 
             print("请使用夸克APP扫描二维码登录...")
 
-            # 显示二维码
+            # 显示二维码 - 直接从URL生成ASCII二维码
             try:
-                display_qr_code(qr_image_path)
+                display_qr_from_url(qr_url)
             except Exception as e:
-                self.logger.warning(f"显示二维码失败: {e}")
-                print(f"请手动打开二维码图片: {qr_image_path}")
+                self.logger.warning(f"显示ASCII二维码失败: {e}")
+                print(f"请在浏览器中打开: {qr_url}")
 
             # 等待登录
             if self.wait_for_login(qr_token):
