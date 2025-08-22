@@ -395,7 +395,7 @@ def upload_file(file_path: str, parent_folder_id: str = "0", folder_path: Option
             # 上传完成后，在进度条外显示结果
             if result.get('status') == 'success':
                 md5_info = f" MD5: {result.get('md5', 'N/A')}" if console.is_terminal else ""
-                print_success(f"✅ 上传成功{md5_info}")
+                print_success(f"上传成功{md5_info}")
             else:
                 print_error("上传失败")
                 raise typer.Exit(1)
