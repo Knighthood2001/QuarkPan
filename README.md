@@ -2,9 +2,15 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.0.0-brightgreen.svg)](https://github.com/lich0821/QuarkPan)
+[![PyPi](https://img.shields.io/pypi/v/quarkpan.svg)](https://pypi.python.org/pypi/quarkpan) 
 
 一个功能完整的夸克网盘 Python API 客户端和命令行工具，支持文件管理、上传下载、分享转存等核心功能。提供简洁的 Python API 接口和强大的命令行工具，满足自动化脚本和日常使用需求。
+
+发送 `WCF` 进入社区交流，获取更多资源：
+<center>
+
+![公众号搜索【漩智】加入社区](QrCode.jpg)
+</center>
 
 ## ✨ 主要功能
 
@@ -28,7 +34,7 @@
 - **断点续传**: 支持大文件的断点续传功能
 
 ### 🔗 分享功能
-- **创建分享**: 为文件/文件夹创建分享链接，支持密码和有效期设置
+- **创建分享**: 为文件 / 文件夹创建分享链接，支持密码和有效期设置
 - **分享管理**: 查看、编辑、删除自己的分享记录
 - **分享转存**: 将他人分享的资源一键转存到自己网盘
 - **链接解析**: 智能识别和解析各种格式的分享链接
@@ -42,8 +48,12 @@
 ## 🚀 快速开始
 
 ### 安装
+#### 方法一：直接安装
+```sh
+pip install quarkpan
+```
 
-#### 方法一：从源码安装（推荐）
+#### 方法二：从源码安装
 ```bash
 # 克隆项目
 git clone https://github.com/lich0821/QuarkPan.git
@@ -56,7 +66,7 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
-#### 方法二：直接使用
+#### 方法三：直接使用
 ```bash
 # 克隆后直接运行
 git clone https://github.com/lich0821/QuarkPan.git
@@ -98,14 +108,14 @@ with QuarkClient() as client:
     # 检查登录状态
     if not client.is_logged_in():
         client.login()  # 自动打开二维码登录
-    
+
     # 获取根目录文件列表
     files = client.list_files()
     print(f"找到 {len(files['data']['list'])} 个文件")
-    
+
     # 搜索文件
     results = client.search_files("重要文档")
-    
+
     # 获取存储信息
     storage = client.get_storage_info()
     print(f"已使用: {storage['data']['used'] / (1024**3):.2f} GB")
@@ -122,19 +132,19 @@ from quark_client import QuarkClient
 with QuarkClient() as client:
     # 文件列表获取
     files = client.list_files(folder_id="0", page=1, size=50)
-    
+
     # 创建文件夹
     result = client.files.create_folder("新文件夹", parent_id="0")
-    
+
     # 删除文件（支持批量）
     result = client.files.delete_files(["file_id_1", "file_id_2"])
-    
+
     # 重命名文件
     result = client.files.rename_file("file_id", "新名称")
-    
+
     # 移动文件（支持批量）
     result = client.files.move_files(["file_id"], "target_folder_id")
-    
+
     # 搜索文件
     results = client.search_files("关键词", size=20)
 ```
@@ -406,23 +416,59 @@ shares = client.get_my_shares()
 
 ```
 QuarkPan/
-├── quark_client/           # 主要代码
-│   ├── __init__.py        # 包入口
-│   ├── client.py          # 主客户端类
-│   ├── config.py          # 配置管理
-│   ├── exceptions.py      # 异常定义
-│   ├── auth/              # 认证模块
-│   │   └── login.py       # 登录实现
-│   ├── core/              # 核心API客户端
-│   │   └── api_client.py  # HTTP客户端
-│   ├── services/          # 业务服务
-│   │   ├── file_service.py    # 文件管理
-│   │   └── share_service.py   # 分享管理
-│   └── cli/               # 命令行界面
-├── examples/              # 使用示例
-├── docs/                  # 文档
-├── requirements.txt       # 依赖列表
-└── README.md             # 项目说明
+├── quark_client/             # 主要代码包
+│   ├── __init__.py           # 包入口和导出定义
+│   ├── client.py             # 主客户端类
+│   ├── config.py             # 配置管理
+│   ├── exceptions.py         # 异常定义
+│   ├── auth/                 # 认证模块
+│   │   ├── __init__.py  
+│   │   ├── login.py         # 统一登录管理
+│   │   ├── api_login.py     # API 二维码登录
+│   │   └── simple_login.py  # 手动 Cookie 登录
+│   ├── core/                # 核心 API 客户端
+│   │   ├── __init__.py  
+│   │   └── api_client.py    # HTTP 客户端和 API 封装
+│   ├── services/            # 业务服务层
+│   │   ├── __init__.py  
+│   │   ├── file_service.py        # 文件管理服务
+│   │   ├── file_upload_service.py # 文件上传服务
+│   │   ├── file_download_service.py # 文件下载服务
+│   │   ├── share_service.py       # 分享管理服务
+│   │   └── name_resolver.py       # 文件名解析器
+│   ├── cli/                 # 命令行界面
+│   │   ├── __init__.py  
+│   │   ├── __main__.py      # 模块入口 (python -m quark_client.cli)
+│   │   ├── main.py          # CLI 主程序
+│   │   ├── interactive.py   # 交互式界面
+│   │   ├── utils.py         # CLI 工具函数
+│   │   └── commands/        # 命令模块
+│   │       ├── __init__.py
+│   │       ├── auth.py            # 认证命令
+│   │       ├── basic_fileops.py   # 基础文件操作
+│   │       ├── download.py        # 下载命令
+│   │       ├── move_commands.py   # 移动操作命令
+│   │       ├── search.py          # 搜索命令
+│   │       └── share_commands.py  # 分享命令
+│   └── utils/               # 工具模块
+│       ├── __init__.py  
+│       ├── logger.py        # 日志工具
+│       └── qr_code.py       # 二维码工具
+├── examples/                # 使用示例
+│   ├── basic_usage.py       # 基础功能演示
+│   ├── file_operations_demo.py # 文件操作演示
+│   ├── file_browser_demo.py # 文件浏览器演示
+│   └── share_save_demo.py   # 分享转存演示
+├── config/                  # 配置文件目录
+│   ├── cookies.json         # 登录 Cookie 存储
+│   ├── login_result.json    # 登录结果缓存
+│   ├── qr_code.png          # 二维码图片
+│   └── user_info.json       # 用户信息缓存
+├── cli.py                   # CLI 直接入口脚本
+├── setup.py                 # 安装配置
+├── requirements.txt         # 依赖列表
+├── LICENSE                  # 开源协议
+└── README.md                # 项目说明
 ```
 
 ## 🧪 运行示例
@@ -437,7 +483,7 @@ python examples/basic_usage.py
 
 **功能演示：**
 - ✅ 自动登录认证
-- 📁 获取根目录文件列表（显示前5个）
+- 📁 获取根目录文件列表（显示前 5 个）
 - 💾 查看存储容量信息  
 - 🔍 全盘文件搜索演示
 - 🔗 获取个人分享列表
@@ -508,11 +554,7 @@ python examples/share_save_demo.py      # 3. 最后体验分享功能
 - **rich** (>=13.0.0): 美化终端输出和交互
 
 ### 二维码支持  
-- **qrcode** (>=7.4.0): 二维码生成
-- **Pillow** (>=10.0.0): 图像处理库
-- **zxing-cpp**: 二维码识别和解码
-- **opencv-python**: 图像处理（用于二维码显示）
-- **numpy**: 数值计算支持
+- **qrcode** (>=7.4.0): 二维码生成和终端 ASCII 显示
 
 ### 用户体验
 - **tqdm** (>=4.65.0): 进度条显示
@@ -535,7 +577,7 @@ pip install -r requirements.txt pytest pytest-asyncio
 
 ### 系统要求
 - **Python**: 3.8 或更高版本
-- **操作系统**: Windows/macOS/Linux 
+- **操作系统**: Windows/macOS/Linux
 - **内存**: 建议 512MB 以上可用内存
 - **网络**: 需要稳定的互联网连接
 - **终端**: 支持 UTF-8 编码的终端（推荐）
@@ -545,7 +587,7 @@ pip install -r requirements.txt pytest pytest-asyncio
 ### 使用须知
 1. **首次使用**: 需要通过扫码或手动方式完成登录认证
 2. **配置文件**: 登录信息保存在 `config/cookies.json`，请妥善保管
-3. **网络环境**: 建议在稳定的网络环境下使用，避免上传/下载中断
+3. **网络环境**: 建议在稳定的网络环境下使用，避免上传 / 下载中断
 4. **账号安全**: 请使用官方夸克 APP 进行扫码登录，确保账号安全
 5. **功能限制**: 部分功能受夸克网盘官方 API 限制，可能会有调用频率限制
 
@@ -566,13 +608,17 @@ pip install -r requirements.txt pytest pytest-asyncio
 - **登录失败**: 尝试清除 `config/cookies.json` 后重新登录
 - **API 错误**: 检查网络连接，或等待片刻后重试
 - **二维码不显示**: 检查终端是否支持图片显示，或查看 `config/qr_code.png`
-- **上传/下载中断**: 检查文件路径和网络连接状态
+- **上传 / 下载中断**: 检查文件路径和网络连接状态
 - **命令行乱码**: 确保终端支持 UTF-8 编码
 
 ### 获取帮助
 - **GitHub Issues**: [提交问题报告](https://github.com/lich0821/QuarkPan/issues)
-- **文档**: 查看 `docs/` 目录下的详细文档
 - **示例代码**: 参考 `examples/` 目录下的示例文件
+- **微信群**: 发送 `WCF` 进群交流
+<center>
+
+![公众号搜索【漩智】加入社区](QrCode.jpg)
+</center>
 
 ### 贡献指南
 欢迎提交 Issue 和 Pull Request！在贡献代码前，请：
@@ -587,5 +633,3 @@ pip install -r requirements.txt pytest pytest-asyncio
 
 ---
 ⭐ 如果这个项目对你有帮助，请给个 Star 支持一下！
-
-🐛 发现问题或有功能建议？欢迎提交 [Issue](https://github.com/lich0821/QuarkPan/issues)！
