@@ -7,7 +7,7 @@ import hashlib
 import mimetypes
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from ..core.api_client import QuarkAPIClient
 from ..exceptions import APIError
@@ -151,7 +151,7 @@ class FileUploadService:
         self,
         file_path: Path,
         progress_callback: Optional[Callable] = None
-    ) -> tuple[str, str]:
+    ) -> Tuple[str, str]:
         """计算文件的MD5和SHA1哈希值"""
         md5_hash = hashlib.md5()
         sha1_hash = hashlib.sha1()
