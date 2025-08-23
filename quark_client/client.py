@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .auth import QuarkAuth
 from .core.api_client import QuarkAPIClient
+from .services.batch_share_service import BatchShareService
 from .services.file_download_service import FileDownloadService
 from .services.file_service import FileService
 from .services.file_upload_service import FileUploadService
@@ -33,6 +34,7 @@ class QuarkClient:
         self.upload = FileUploadService(self.api_client)
         self.download = FileDownloadService(self.api_client)
         self.shares = ShareService(self.api_client)
+        self.batch_shares = BatchShareService(self.api_client)
         self.name_resolver = NameResolver(self.files)
 
         # 保存认证信息

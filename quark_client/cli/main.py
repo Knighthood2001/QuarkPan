@@ -19,6 +19,7 @@ from .commands.basic_fileops import (browse_folder, create_folder,
                                      delete_files, file_info,
                                      get_download_link, goto_folder,
                                      rename_file, upload_file)
+from .commands.batch_share_commands import batch_share, list_structure
 from .commands.download import download_app
 from .commands.move_commands import move_files, move_to_folder
 from .commands.search import search_app
@@ -149,6 +150,25 @@ def shares(
 ):
     """列出我的分享"""
     list_my_shares(page, size)
+
+
+@app.command()
+def batch_share_cmd(
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="CSV输出文件名"),
+    exclude: Optional[List[str]] = typer.Option(["来自：分享"], "--exclude", "-e", help="排除的目录名称模式"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="只扫描目录，不创建分享")
+):
+    """批量分享三级目录下的所有目标目录"""
+    batch_share(output, exclude, dry_run)
+
+
+@app.command()
+def list_dirs(
+    level: int = typer.Option(3, "--level", "-l", help="显示目录层级深度 (1-4)"),
+    exclude: Optional[List[str]] = typer.Option(["来自：分享"], "--exclude", "-e", help="排除的目录名称模式")
+):
+    """查看网盘目录结构"""
+    list_structure(level, exclude)
 
 
 @app.command()
