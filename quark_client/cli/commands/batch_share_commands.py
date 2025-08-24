@@ -9,16 +9,30 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from ..utils import (get_client, handle_api_error, print_error, print_info,
-                     print_success, print_warning)
+from ..utils import get_client, handle_api_error, print_error, print_info, print_success, print_warning
 
 
 def batch_share(
     output: Optional[str] = typer.Option(None, "--output", "-o", help="CSV输出文件名"),
     exclude: Optional[List[str]] = typer.Option(["来自：分享"], "--exclude", "-e", help="排除的目录名称模式"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="只扫描目录，不创建分享")
+    dry_run: bool = typer.Option(False, "--dry-run", help="只扫描目录，不创建分享"),
+    target_dir: Optional[str] = typer.Option(None, "--target-dir", "-t", help="指定起始目录路径（默认为根目录）"),
+    depth: int = typer.Option(3, "--depth", "-d", help="扫描深度层级（默认3表示四级目录）"),
+    share_level: str = typer.Option("folders", "--share-level", "-l", help="分享类型：folders/files/both（默认folders）")
 ):
-    """批量分享三级目录下的所有目标目录"""
+    """
+    批量分享目录/文件功能
+
+    支持三种使用模式：
+    1. 默认模式：分享三级目录下的所有文件夹（向后兼容）
+    2. 指定目录模式：分享指定目录的子目录/文件
+    3. 灵活深度模式：分享任意深度层级的目录/文件
+
+    示例：
+      quarkpan batch-share                                    # 默认行为
+      quarkpan batch-share --target-dir "/我的资料"          # 指定目录
+      quarkpan batch-share --depth 2 --share-level both     # 2级深度，文件+文件夹
+    """
     console = Console()
 
     try:
@@ -31,11 +45,15 @@ def batch_share(
 
             batch_service = BatchShareService(client.api_client)
 
-            print_info("🔍 开始扫描网盘目录结构...")
+            # 显示参数信息
+            if target_dir:
+                print_info(f"🎯 指定目录模式: {target_dir}")
+            print_info(f"📊 扫描深度: {depth} 级")
+            print_info(f"📁 分享类型: {share_level}")
 
             # 显示排除模式
             if exclude:
-                print_info(f"排除目录模式: {', '.join(exclude)}")
+                print_info(f"🚫 排除目录模式: {', '.join(exclude)}")
 
             # 收集目标目录
             with Progress(
@@ -44,31 +62,43 @@ def batch_share(
                 console=console
             ) as progress:
                 task = progress.add_task("正在扫描目录...", total=None)
-                target_directories = batch_service.collect_target_directories(exclude)
-                progress.update(task, description=f"找到 {len(target_directories)} 个目标目录")
+                target_directories = batch_service.collect_target_directories(
+                    exclude_patterns=exclude,
+                    target_dir=target_dir,
+                    depth=depth,
+                    share_level=share_level
+                )
+                progress.update(
+                    task,
+                    description=f"找到 {len(target_directories)} 个目标{'文件夹' if share_level == 'folders' else '项目' if share_level == 'both' else '文件'}")
 
             if not target_directories:
-                print_warning("没有找到任何需要分享的目标目录")
+                print_warning("没有找到任何需要分享的目标项目")
                 return
 
             # 显示目录结构预览
-            print_success(f"✅ 找到 {len(target_directories)} 个目标目录")
+            item_type = "文件夹" if share_level == "folders" else ("文件" if share_level == "files" else "项目")
+            print_success(f"✅ 找到 {len(target_directories)} 个目标{item_type}")
 
             # 创建目录预览表格
-            table = Table(title="目标目录预览")
+            table = Table(title=f"目标{item_type}预览")
             table.add_column("序号", style="cyan", width=4)
-            table.add_column("二级目录", style="blue", width=12)
-            table.add_column("三级目录", style="green", width=12)
+            table.add_column("类型", style="blue", width=6)
+            table.add_column("名称", style="green", width=20)
             table.add_column("完整路径", style="dim", width=50)
 
             # 显示前20个目录作为预览
             preview_count = min(20, len(target_directories))
-            for i, target_dir in enumerate(target_directories[:preview_count], 1):
+            for i, target_item in enumerate(target_directories[:preview_count], 1):
+                item_type_icon = "📁" if target_item.get('is_folder', True) else "📄"
+                item_name = target_item['name']
+                full_path = target_item['full_path']
+
                 table.add_row(
                     str(i),
-                    target_dir['second_level'],
-                    target_dir['third_level'],
-                    target_dir['full_path']
+                    item_type_icon,
+                    item_name,
+                    full_path
                 )
 
             console.print(table)

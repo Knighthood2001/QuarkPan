@@ -173,13 +173,29 @@ def shares(
 
 
 @app.command()
-def batch_share_cmd(
+def batch_share(
     output: Optional[str] = typer.Option(None, "--output", "-o", help="CSV输出文件名"),
     exclude: Optional[List[str]] = typer.Option(["来自：分享"], "--exclude", "-e", help="排除的目录名称模式"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="只扫描目录，不创建分享")
+    dry_run: bool = typer.Option(False, "--dry-run", help="只扫描目录，不创建分享"),
+    target_dir: Optional[str] = typer.Option(None, "--target-dir", "-t", help="指定起始目录路径（默认为根目录）"),
+    depth: int = typer.Option(3, "--depth", "-d", help="扫描深度层级（默认3表示四级目录）"),
+    share_level: str = typer.Option("folders", "--share-level", "-l", help="分享类型：folders/files/both（默认folders）")
 ):
-    """批量分享三级目录下的所有目标目录"""
-    batch_share(output, exclude, dry_run)
+    """
+    批量分享目录/文件功能
+
+    支持三种使用模式：
+    1. 默认模式：分享三级目录下的所有文件夹（向后兼容）
+    2. 指定目录模式：分享指定目录的子目录/文件
+    3. 灵活深度模式：分享任意深度层级的目录/文件
+
+    示例：
+      quarkpan batch-share                                    # 默认行为
+      quarkpan batch-share --target-dir "/我的资料"          # 指定目录
+      quarkpan batch-share --depth 2 --share-level both     # 2级深度，文件+文件夹
+    """
+    from .commands.batch_share_commands import batch_share as batch_share_impl
+    batch_share_impl(output, exclude, dry_run, target_dir, depth, share_level)
 
 
 @app.command()

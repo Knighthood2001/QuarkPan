@@ -28,9 +28,42 @@ class BatchShareService:
         self.share_service = ShareService(client)
         self.logger = get_logger(__name__)
 
-    def collect_target_directories(self, exclude_patterns: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    def collect_target_directories(self,
+                                   exclude_patterns: Optional[List[str]] = None,
+                                   target_dir: Optional[str] = None,
+                                   depth: int = 3,
+                                   share_level: str = "folders") -> List[Dict[str, Any]]:
         """
-        收集所有需要分享的目标目录（四级目录）
+        收集所有需要分享的目标目录/文件（统一入口）
+
+        Args:
+            exclude_patterns: 排除的目录名称模式列表
+            target_dir: 指定的起始目录路径（None表示根目录）
+            depth: 扫描深度（默认3表示四级目录）
+            share_level: 分享类型（folders/files/both）
+
+        Returns:
+            目标目录/文件列表，每个元素包含目录信息和完整路径
+        """
+        if exclude_patterns is None:
+            exclude_patterns = ["来自：分享"]
+
+        # 根据参数选择不同的收集策略
+        if target_dir:
+            # 指定目录模式
+            return self.collect_directories_by_path(target_dir, depth, share_level, exclude_patterns)
+        else:
+            # 默认模式：保持向后兼容
+            if depth == 3 and share_level == "folders":
+                # 使用原有逻辑（四级目录扫描）
+                return self._collect_legacy_target_directories(exclude_patterns)
+            else:
+                # 使用新的深度模式
+                return self.collect_directories_by_depth(depth, share_level, exclude_patterns)
+
+    def _collect_legacy_target_directories(self, exclude_patterns: List[str]) -> List[Dict[str, Any]]:
+        """
+        原有的四级目录收集逻辑（保持向后兼容）
 
         Args:
             exclude_patterns: 排除的目录名称模式列表
@@ -38,9 +71,6 @@ class BatchShareService:
         Returns:
             目标目录列表，每个元素包含目录信息和完整路径
         """
-        if exclude_patterns is None:
-            exclude_patterns = ["来自：分享"]
-
         target_directories = []
 
         self.logger.info("开始收集目标目录...")
@@ -136,6 +166,241 @@ class BatchShareService:
 
         self.logger.info(f"总共找到 {len(target_directories)} 个目标目录")
         return target_directories
+
+    def collect_directories_by_path(
+            self, target_dir: str, depth: int, share_level: str, exclude_patterns: List[str]) -> List[
+            Dict[str, Any]]:
+        """
+        根据指定目录路径收集子目录/文件
+
+        Args:
+            target_dir: 目标目录路径
+            depth: 扫描深度（相对于目标目录的深度）
+            share_level: 分享类型（folders/files/both）
+            exclude_patterns: 排除模式列表
+
+        Returns:
+            目标目录/文件列表
+        """
+        self.logger.info(f"开始扫描指定目录: {target_dir}，深度: {depth}，类型: {share_level}")
+
+        # 解析目标目录路径，获取目录ID
+        try:
+            target_folder_id = self._resolve_path_to_folder_id(target_dir)
+            if not target_folder_id:
+                self.logger.error(f"无法找到目录: {target_dir}")
+                return []
+
+            # 处理路径格式，确保以/开头
+            normalized_path = target_dir if target_dir.startswith('/') else '/' + target_dir
+
+            # 从指定目录开始递归收集
+            return self._collect_items_recursive(
+                folder_id=target_folder_id,
+                current_path=normalized_path,
+                current_depth=0,  # 从指定目录开始，深度重新计算
+                max_depth=depth,
+                share_level=share_level,
+                exclude_patterns=exclude_patterns
+            )
+
+        except Exception as e:
+            self.logger.error(f"扫描指定目录失败 {target_dir}: {e}")
+            return []
+
+    def collect_directories_by_depth(self, depth: int, share_level: str, exclude_patterns: List[str]) -> List[Dict[str, Any]]:
+        """
+        根据指定深度从根目录收集目录/文件
+
+        Args:
+            depth: 扫描深度
+            share_level: 分享类型（folders/files/both）
+            exclude_patterns: 排除模式列表
+
+        Returns:
+            目标目录/文件列表
+        """
+        self.logger.info(f"开始扫描根目录，深度: {depth}，类型: {share_level}")
+
+        try:
+            # 从根目录开始递归收集
+            return self._collect_items_recursive(
+                folder_id="0",
+                current_path="/",
+                current_depth=0,
+                max_depth=depth,
+                share_level=share_level,
+                exclude_patterns=exclude_patterns
+            )
+
+        except Exception as e:
+            self.logger.error(f"按深度扫描失败: {e}")
+            return []
+
+    def _collect_items_recursive(self, folder_id: str, current_path: str, current_depth: int,
+                                 max_depth: int, share_level: str, exclude_patterns: List[str]) -> List[Dict[str, Any]]:
+        """
+        递归收集目录/文件
+
+        Args:
+            folder_id: 当前文件夹ID
+            current_path: 当前路径
+            current_depth: 当前深度
+            max_depth: 最大深度
+            share_level: 分享类型
+            exclude_patterns: 排除模式列表
+
+        Returns:
+            收集到的项目列表
+        """
+        items = []
+
+        if current_depth >= max_depth:
+            # 达到指定深度，收集该层的项目
+            try:
+                response = self.file_service.list_files(folder_id=folder_id, size=200)
+                if response.get('status') != 200:
+                    self.logger.warning(f"无法获取文件夹内容: {current_path}")
+                    return items
+
+                file_list = response.get('data', {}).get('list', [])
+
+                for item in file_list:
+                    item_name = item.get('file_name', '')
+                    is_folder = item.get('dir', False)
+
+                    # 检查排除模式
+                    if any(pattern in item_name for pattern in exclude_patterns):
+                        continue
+
+                    # 根据分享类型过滤
+                    if share_level == "folders" and not is_folder:
+                        continue
+                    elif share_level == "files" and is_folder:
+                        continue
+
+                    # 构造项目信息
+                    item_path = f"{current_path.rstrip('/')}/{item_name}"
+                    if current_path == "/":
+                        item_path = f"/{item_name}"
+
+                    item_info = {
+                        'fid': item.get('fid'),
+                        'name': item_name,
+                        'full_path': item_path,
+                        'is_folder': is_folder,
+                        'file_info': item,
+                        'depth': current_depth
+                    }
+
+                    items.append(item_info)
+                    self.logger.info(f"找到{'文件夹' if is_folder else '文件'}: {item_path}")
+
+            except Exception as e:
+                self.logger.error(f"处理文件夹时出错 {current_path}: {e}")
+
+        else:
+            # 还未达到指定深度，继续递归
+            try:
+                response = self.file_service.list_files(folder_id=folder_id, size=200)
+                if response.get('status') != 200:
+                    self.logger.warning(f"无法获取文件夹内容: {current_path}")
+                    return items
+
+                file_list = response.get('data', {}).get('list', [])
+
+                # 只处理文件夹，继续递归
+                for item in file_list:
+                    if not item.get('dir', False):
+                        continue  # 跳过文件
+
+                    folder_name = item.get('file_name', '')
+
+                    # 检查排除模式
+                    if any(pattern in folder_name for pattern in exclude_patterns):
+                        self.logger.info(f"跳过排除文件夹: {folder_name}")
+                        continue
+
+                    # 构造子文件夹路径
+                    sub_path = f"{current_path.rstrip('/')}/{folder_name}"
+                    if current_path == "/":
+                        sub_path = f"/{folder_name}"
+
+                    # 递归处理子文件夹
+                    sub_items = self._collect_items_recursive(
+                        folder_id=item.get('fid'),
+                        current_path=sub_path,
+                        current_depth=current_depth + 1,
+                        max_depth=max_depth,
+                        share_level=share_level,
+                        exclude_patterns=exclude_patterns
+                    )
+
+                    items.extend(sub_items)
+
+            except Exception as e:
+                self.logger.error(f"递归处理文件夹时出错 {current_path}: {e}")
+
+        return items
+
+    def _resolve_path_to_folder_id(self, path: str) -> Optional[str]:
+        """
+        将路径解析为文件夹ID
+
+        Args:
+            path: 文件夹路径（支持绝对路径和相对路径）
+
+        Returns:
+            文件夹ID，如果未找到返回None
+        """
+        if path == "/" or path == "":
+            return "0"  # 根目录
+
+        # 处理相对路径：如果不以/开头，则添加/
+        if not path.startswith('/'):
+            path = '/' + path
+
+        # 移除开头和结尾的斜杠，然后分割
+        path = path.strip('/')
+        if not path:  # 如果处理后为空，说明是根目录
+            return "0"
+
+        path_parts = path.split('/')
+
+        current_folder_id = "0"  # 从根目录开始
+
+        for i, part in enumerate(path_parts):
+            if not part:
+                continue
+
+            try:
+                # 获取当前文件夹的内容
+                response = self.file_service.list_files(folder_id=current_folder_id, size=200)
+                if response.get('status') != 200:
+                    self.logger.error(f"无法访问文件夹: {'/' if i == 0 else '/'.join(path_parts[:i])}")
+                    return None
+
+                file_list = response.get('data', {}).get('list', [])
+
+                # 查找匹配的子文件夹
+                found = False
+                for item in file_list:
+                    if item.get('dir', False) and item.get('file_name', '') == part:
+                        current_folder_id = item.get('fid')
+                        found = True
+                        self.logger.info(f"找到路径段: {part} -> {current_folder_id}")
+                        break
+
+                if not found:
+                    self.logger.error(f"路径中找不到文件夹: {part} (在 {'/' if i == 0 else '/' + '/'.join(path_parts[:i])})")
+                    return None
+
+            except Exception as e:
+                self.logger.error(f"解析路径时出错在: {part}, 错误: {e}")
+                return None
+
+        self.logger.info(f"成功解析路径 {path} -> {current_folder_id}")
+        return current_folder_id
 
     def create_batch_shares(self, target_directories: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

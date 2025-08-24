@@ -770,13 +770,16 @@ class InteractiveShell:
             return None
 
     def cmd_batch_share(self, args: List[str]):
-        """批量分享三级目录下的所有目标目录"""
+        """批量分享目录/文件功能"""
         print_info("批量分享功能")
 
         # 解析参数
         output = None
         exclude = ["来自：分享"]
         dry_run = False
+        target_dir = None
+        depth = 3
+        share_level = "folders"
 
         i = 0
         while i < len(args):
@@ -797,12 +800,58 @@ class InteractiveShell:
             elif args[i] == "--dry-run":
                 dry_run = True
                 i += 1
+            elif args[i] == "--target-dir" or args[i] == "-t":
+                if i + 1 < len(args):
+                    target_dir = args[i + 1]
+                    i += 2
+                else:
+                    print_error("--target-dir 需要一个参数")
+                    return
+            elif args[i] == "--depth" or args[i] == "-d":
+                if i + 1 < len(args):
+                    try:
+                        depth = int(args[i + 1])
+                    except ValueError:
+                        print_error("--depth 必须是数字")
+                        return
+                    i += 2
+                else:
+                    print_error("--depth 需要一个参数")
+                    return
+            elif args[i] == "--share-level" or args[i] == "-l":
+                if i + 1 < len(args):
+                    if args[i + 1] in ["folders", "files", "both"]:
+                        share_level = args[i + 1]
+                    else:
+                        print_error("--share-level 必须是 folders, files 或 both")
+                        return
+                    i += 2
+                else:
+                    print_error("--share-level 需要一个参数")
+                    return
+            elif args[i] == "--help" or args[i] == "-h":
+                print_info("批量分享命令帮助：")
+                print_info("用法: batch-share [选项]")
+                print_info("选项:")
+                print_info("  --output, -o <文件名>     CSV输出文件名")
+                print_info("  --exclude, -e <模式>      排除的目录名称模式")
+                print_info("  --dry-run                 只扫描，不创建分享")
+                print_info("  --target-dir, -t <路径>   指定起始目录路径")
+                print_info("  --depth, -d <数字>        扫描深度层级（默认3）")
+                print_info("  --share-level, -l <类型>  分享类型: folders/files/both")
+                print_info("")
+                print_info("示例:")
+                print_info("  batch-share                                    # 默认模式")
+                print_info("  batch-share --target-dir \"/我的资料\"          # 指定目录")
+                print_info("  batch-share --depth 2 --share-level both     # 2级深度，文件+文件夹")
+                return
             else:
                 i += 1
 
         try:
             # 调用批量分享函数
-            batch_share(output=output, exclude=exclude, dry_run=dry_run)
+            batch_share(output=output, exclude=exclude, dry_run=dry_run,
+                        target_dir=target_dir, depth=depth, share_level=share_level)
         except Exception as e:
             print_error(f"批量分享失败: {e}")
 

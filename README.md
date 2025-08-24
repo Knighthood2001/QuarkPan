@@ -328,7 +328,52 @@ quarkpan share list
 quarkpan share save "https://pan.quark.cn/s/abc123" --password 1234
 
 # 批量分享功能
-quarkpan batch-share --help
+quarkpan batch-share --help                               # 查看完整帮助
+quarkpan batch-share                                      # 默认模式（四级目录）
+quarkpan batch-share --target-dir "/我的资料"            # 指定目录模式
+quarkpan batch-share --depth 2 --share-level both        # 灵活深度模式
+quarkpan batch-share --dry-run                           # 预览模式（不创建分享）
+```
+
+### 🚀 批量分享功能详解
+
+批量分享功能支持三种使用模式，适应不同的分享需求：
+
+```bash
+# 1️⃣ 默认模式（完全向后兼容）
+quarkpan batch-share
+# 分享根目录下三级目录的所有子文件夹，排除"来自：分享"目录
+
+# 2️⃣ 指定目录模式
+quarkpan batch-share --target-dir "/课程资料"
+# 分享指定目录的子文件夹
+
+quarkpan batch-share --target-dir "/文档" --depth 2
+# 分享指定目录下2级深度的文件夹
+
+# 3️⃣ 灵活深度模式
+quarkpan batch-share --depth 1
+# 分享根目录下1级深度的所有文件夹
+
+quarkpan batch-share --depth 2 --share-level files
+# 分享根目录下2级深度的所有文件
+
+quarkpan batch-share --depth 2 --share-level both
+# 分享根目录下2级深度的文件夹和文件
+
+# 🔍 预览和排除
+quarkpan batch-share --dry-run                           # 仅扫描预览，不创建分享
+quarkpan batch-share --exclude "临时" --exclude "备份"   # 排除特定目录
+quarkpan batch-share --output "my_shares.csv"           # 自定义CSV输出文件名
+```
+
+**参数说明：**
+- `--target-dir, -t`: 指定起始目录路径（默认根目录）
+- `--depth, -d`: 扫描深度层级（默认 3）
+- `--share-level, -l`: 分享类型 - `folders` (文件夹) / `files` (文件) / `both` (两者)
+- `--exclude, -e`: 排除的目录名称模式
+- `--output, -o`: CSV 输出文件名
+- `--dry-run`: 只扫描预览，不创建分享
 ```
 
 ## 🔐 登录认证详解
@@ -361,7 +406,7 @@ python -m quark_client.cli auth login
 
 ### 手动 Cookie 登录
 
-```bash  
+```bash
 # 🎯 最简单
 quarkpan auth login --method simple
 
