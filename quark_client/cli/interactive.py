@@ -5,16 +5,17 @@
 import os
 import shlex
 from typing import List, Optional
+
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
-from rich.panel import Panel
-
-from .utils import print_info, print_error, print_success, print_warning, get_client
 
 from .commands.basic_fileops import upload_file
-from .commands.share_commands import create_share, list_my_shares
+from .commands.batch_share_commands import batch_share, list_structure
 from .commands.move_commands import move_files
+from .commands.share_commands import create_share, list_my_shares, save_share
+from .utils import get_client, print_error, print_info, print_success, print_warning
 
 console = Console()
 
@@ -63,6 +64,11 @@ class InteractiveShell:
             'shares': self.cmd_shares,
             'move': self.cmd_move,
             'mv': self.cmd_move,
+            'batch-share': self.cmd_batch_share,
+            'list-dirs': self.cmd_list_dirs,
+            'save': self.cmd_save,
+            'status': self.cmd_status,
+            'version': self.cmd_version,
         }
 
     def start(self):
@@ -163,7 +169,12 @@ class InteractiveShell:
             ("upload <file>", "up", "上传文件到当前目录"),
             ("share <path>", "", "创建分享链接"),
             ("shares", "", "查看我的分享列表"),
+            ("save <url>", "", "转存分享文件"),
             ("move <src> <dst>", "mv", "移动文件到目标文件夹"),
+            ("batch-share", "", "批量分享目录"),
+            ("list-dirs", "", "查看目录结构"),
+            ("status", "", "显示登录状态和存储信息"),
+            ("version", "", "显示版本信息"),
             ("clear", "cls", "清屏"),
         ]
 
@@ -757,6 +768,179 @@ class InteractiveShell:
             return file_id
         except Exception:
             return None
+
+    def cmd_batch_share(self, args: List[str]):
+        """批量分享三级目录下的所有目标目录"""
+        print_info("批量分享功能")
+
+        # 解析参数
+        output = None
+        exclude = ["来自：分享"]
+        dry_run = False
+
+        i = 0
+        while i < len(args):
+            if args[i] == "--output" or args[i] == "-o":
+                if i + 1 < len(args):
+                    output = args[i + 1]
+                    i += 2
+                else:
+                    print_error("--output 需要一个参数")
+                    return
+            elif args[i] == "--exclude" or args[i] == "-e":
+                if i + 1 < len(args):
+                    exclude = [args[i + 1]]
+                    i += 2
+                else:
+                    print_error("--exclude 需要一个参数")
+                    return
+            elif args[i] == "--dry-run":
+                dry_run = True
+                i += 1
+            else:
+                i += 1
+
+        try:
+            # 调用批量分享函数
+            batch_share(output=output, exclude=exclude, dry_run=dry_run)
+        except Exception as e:
+            print_error(f"批量分享失败: {e}")
+
+    def cmd_list_dirs(self, args: List[str]):
+        """查看网盘目录结构"""
+        print_info("查看目录结构")
+
+        # 解析参数
+        level = 3
+        exclude = ["来自：分享"]
+
+        i = 0
+        while i < len(args):
+            if args[i] == "--level" or args[i] == "-l":
+                if i + 1 < len(args):
+                    try:
+                        level = int(args[i + 1])
+                    except ValueError:
+                        print_error("level必须是数字")
+                        return
+                    i += 2
+                else:
+                    print_error("--level 需要一个参数")
+                    return
+            elif args[i] == "--exclude" or args[i] == "-e":
+                if i + 1 < len(args):
+                    exclude = [args[i + 1]]
+                    i += 2
+                else:
+                    print_error("--exclude 需要一个参数")
+                    return
+            else:
+                i += 1
+
+        try:
+            # 调用目录结构查看函数
+            list_structure(level=level, exclude=exclude)
+        except Exception as e:
+            print_error(f"查看目录结构失败: {e}")
+
+    def cmd_save(self, args: List[str]):
+        """转存分享文件"""
+        if not args:
+            print_error("用法: save <分享链接> [选项]")
+            print_info("示例: save https://pan.quark.cn/s/abc123")
+            print_info("选项:")
+            print_info("  --folder <路径>    目标文件夹路径 (默认: /)")
+            print_info("  --no-create-folder 不自动创建目标文件夹")
+            return
+
+        share_url = args[0]
+        target_folder = "/"
+        create_folder = True
+
+        # 解析选项
+        i = 1
+        while i < len(args):
+            if args[i] == "--folder" and i + 1 < len(args):
+                target_folder = args[i + 1]
+                i += 2
+            elif args[i] == "--no-create-folder":
+                create_folder = False
+                i += 1
+            else:
+                i += 1
+
+        try:
+            print_info(f"转存分享文件到: {target_folder}")
+
+            # 调用转存分享函数
+            save_share(
+                share_url=share_url,
+                target_folder=target_folder,
+                create_folder=create_folder
+            )
+
+        except Exception as e:
+            print_error(f"转存分享失败: {e}")
+
+    def cmd_status(self, args: List[str]):
+        """显示登录状态和存储信息"""
+        try:
+            # 检查登录状态
+            if not self.client.is_logged_in():  # type: ignore[attr-defined]
+                print_error("❌ 未登录")
+                print_info("请使用 'quarkpan auth login' 登录")
+                return
+
+            print_success("已登录")
+
+            # 获取存储信息
+            try:
+                storage = self.client.get_storage_info()  # type: ignore[attr-defined]
+                if storage and 'data' in storage:
+                    data = storage['data']
+                    total = data.get('total', 0)
+                    used = data.get('used', 0)
+                    free = total - used
+
+                    # 创建存储信息表格
+                    from rich.table import Table
+                    table = Table(title="💾 存储空间信息")
+                    table.add_column("项目", style="cyan")
+                    table.add_column("大小", style="green")
+                    table.add_column("百分比", style="yellow")
+
+                    usage_percent = (used / total * 100) if total > 0 else 0
+
+                    table.add_row("总容量", self._format_size(total), "100%")
+                    table.add_row("已使用", self._format_size(used), f"{usage_percent:.1f}%")
+                    table.add_row("剩余", self._format_size(free), f"{100-usage_percent:.1f}%")
+
+                    console.print(table)
+                else:
+                    print_warning("⚠️ 无法获取存储信息")
+            except Exception as e:
+                print_warning(f"⚠️ 获取存储信息失败: {e}")
+
+            # 获取当前目录文件数量
+            try:
+                files = self.client.list_files(self.current_folder_id, size=1)  # type: ignore[attr-defined]
+                if files and 'data' in files:
+                    total_files = files['data'].get('total', 0)
+                    display_name = self._get_display_name(self.current_folder_name)
+                    print_info(f"📂 当前目录 ({display_name}) 文件数量: {total_files}")
+                else:
+                    print_warning("⚠️ 无法获取文件信息")
+            except Exception as e:
+                print_warning(f"⚠️ 获取文件信息失败: {e}")
+
+        except Exception as e:
+            print_error(f"❌ 错误: {e}")
+
+    def cmd_version(self, args: List[str]):
+        """显示版本信息"""
+        from rich import print as rprint
+        rprint("[bold blue]QuarkPan CLI[/bold blue] [green]v1.0.0[/green]")
+        rprint("夸克网盘命令行工具 - 交互模式")
 
 
 def start_interactive():

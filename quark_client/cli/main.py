@@ -10,30 +10,36 @@ import typer
 from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
+from typer import Context
 
 # 设置CLI模式下的日志级别为WARNING，减少日志输出
 logging.getLogger("quark_client").setLevel(logging.WARNING)
 
 from .commands.auth import auth_app
-from .commands.basic_fileops import (browse_folder, create_folder,
-                                     delete_files, file_info,
-                                     get_download_link, goto_folder,
-                                     rename_file, upload_file)
+from .commands.basic_fileops import (
+    browse_folder,
+    create_folder,
+    delete_files,
+    file_info,
+    get_download_link,
+    goto_folder,
+    rename_file,
+    upload_file,
+)
 from .commands.batch_share_commands import batch_share, list_structure
 from .commands.download import download_app
 from .commands.move_commands import move_files, move_to_folder
 from .commands.search import search_app
 from .commands.share_commands import create_share, list_my_shares, save_share
 from .interactive import start_interactive
-from .utils import (format_file_size, format_timestamp, get_client,
-                    get_folder_name_by_id)
+from .utils import format_file_size, format_timestamp, get_client, get_folder_name_by_id
 
 # 创建主应用
 app = typer.Typer(
     name="quarkpan",
     help="🚀 夸克网盘命令行工具",
     rich_markup_mode="rich",
-    no_args_is_help=True
+    no_args_is_help=False
 )
 
 # 添加子命令
@@ -44,6 +50,20 @@ app.add_typer(download_app, name="download", help="📥 文件下载")
 
 
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def main(ctx: Context):
+    """
+    🚀 夸克网盘命令行工具
+
+    直接运行 quarkpan 进入交互模式，或使用子命令执行特定操作。
+    """
+    if ctx.invoked_subcommand is None:
+        # 没有子命令时，显示欢迎信息并进入交互模式
+        rprint("[bold blue]🚀 欢迎使用 QuarkPan 命令行工具![/bold blue]")
+        rprint("正在启动交互模式...\n")
+        start_interactive()
 
 
 @app.command()

@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![PyPi](https://img.shields.io/pypi/v/quarkpan.svg)](https://pypi.python.org/pypi/quarkpan) 
+[![PyPi](https://img.shields.io/pypi/v/quarkpan.svg)](https://pypi.python.org/pypi/quarkpan)
 
 一个功能完整的夸克网盘 Python API 客户端和命令行工具，支持文件管理、上传下载、分享转存等核心功能。提供简洁的 Python API 接口和强大的命令行工具，满足自动化脚本和日常使用需求。
 
@@ -86,17 +86,28 @@ python cli.py --help
 
 ### 快速体验
 
+#### 🌟 推荐：交互模式（一键启动）
+```bash
+# 🎯 最简单：直接运行自动进入交互模式
+quarkpan
+
+# 等效命令（明确指定交互模式）
+quarkpan interactive
+
+# 使用Python模块方式
+python -m quark_client.cli.main
+```
+
 #### 1. 首次登录
 ```bash
-# 启动交互式命令行工具（推荐新手使用）
-python -m quark_client.cli interactive
-# 或者
-python cli.py interactive
+# 🎯 最简单：直接运行（自动进入交互模式，引导完成登录）
+quarkpan
 
-# 直接进行二维码登录
-python -m quark_client.cli auth login
-# 或者
-python cli.py auth login
+# 或者直接使用登录命令
+quarkpan auth login
+
+# Python模块方式
+python -m quark_client.cli.main
 ```
 
 #### 2. Python API 快速上手
@@ -199,7 +210,10 @@ share_id, password = client.shares.parse_share_url(
 
 #### 交互式模式（推荐新用户）
 ```bash  
-# 启动交互式界面
+# 🎯 最简单：直接启动（默认进入交互模式）
+quarkpan
+
+# 传统方式（等效）
 python -m quark_client.cli interactive
 # 或
 python cli.py interactive
@@ -213,86 +227,108 @@ python cli.py interactive
 
 #### 认证管理
 ```bash
-# API 二维码登录（推荐）
-python -m quark_client.cli auth login
+# 🎯 最简单：直接运行（自动引导登录）
+quarkpan
+
+# API 二维码登录（直接命令）
+quarkpan auth login
 
 # 手动 Cookie 登录
-python -m quark_client.cli auth login --method simple
+quarkpan auth login --method simple
 
 # 查看登录状态
-python -m quark_client.cli auth status
+quarkpan auth status
 
 # 登出账户
-python -m quark_client.cli auth logout
+quarkpan auth logout
 ```
 
 #### 基础文件操作  
 ```bash
+# 🎯 推荐：直接运行进入交互模式进行操作
+quarkpan
+
+# 或使用直接命令：
 # 查看当前目录文件列表
-python -m quark_client.cli ls
+quarkpan ls
 
 # 查看指定文件夹（使用文件夹 ID）
-python -m quark_client.cli ls --folder-id FOLDER_ID
+quarkpan ls --folder-id FOLDER_ID
 
 # 进入文件夹（切换当前工作目录）
-python -m quark_client.cli cd 文件夹名称
+quarkpan cd 文件夹名称
 
 # 返回上级目录
-python -m quark_client.cli cd ..
+quarkpan cd ..
 
 # 创建文件夹
-python -m quark_client.cli mkdir "新文件夹"
+quarkpan mkdir "新文件夹"
 
 # 重命名文件/文件夹  
-python -m quark_client.cli rename FILE_ID "新名称"
+quarkpan rename FILE_ID "新名称"
 
 # 删除文件/文件夹
-python -m quark_client.cli rm FILE_ID
+quarkpan rm FILE_ID
 
 # 移动文件到指定文件夹
-python -m quark_client.cli mv FILE_ID FOLDER_ID
+quarkpan mv FILE_ID FOLDER_ID
 
 # 查看文件详细信息
-python -m quark_client.cli info FILE_ID
+quarkpan info FILE_ID
 ```
 
 #### 搜索功能
 ```bash
+# 🎯 推荐：在交互模式中使用搜索功能
+quarkpan
+
+# 或使用直接命令：
 # 全盘搜索文件
-python -m quark_client.cli search "关键词"
+quarkpan search "关键词"
 
 # 限制搜索结果数量
-python -m quark_client.cli search "关键词" --limit 10
+quarkpan search "关键词" --limit 10
 
 # 搜索特定文件类型
-python -m quark_client.cli search "报告" --file-type pdf
+quarkpan search "报告" --file-type pdf
 ```
 
 #### 上传下载
 ```bash
+# 🎯 推荐：在交互模式中进行上传下载
+quarkpan
+
+# 或使用直接命令：
 # 上传文件到当前文件夹
-python -m quark_client.cli upload "本地文件.txt"
+quarkpan upload "本地文件.txt"
 
 # 上传到指定文件夹
-python -m quark_client.cli upload "本地文件.txt" --folder-id FOLDER_ID
+quarkpan upload "本地文件.txt" --folder-id FOLDER_ID
 
 # 获取文件下载链接
-python -m quark_client.cli download get FILE_ID
+quarkpan download get FILE_ID
 
 # 下载文件到本地
-python -m quark_client.cli download FILE_ID --output "本地路径.txt"
+quarkpan download FILE_ID --output "本地路径.txt"
 ```
 
 #### 分享管理
 ```bash
+# 🎯 推荐：在交互模式中管理分享
+quarkpan
+
+# 或使用直接命令：
 # 创建文件分享
-python -m quark_client.cli share create FILE_ID --title "分享标题" --password 1234
+quarkpan share create FILE_ID --title "分享标题" --password 1234
 
 # 查看我的分享列表
-python -m quark_client.cli share list
+quarkpan share list
 
 # 转存他人分享
-python -m quark_client.cli share save "https://pan.quark.cn/s/abc123" --password 1234
+quarkpan share save "https://pan.quark.cn/s/abc123" --password 1234
+
+# 批量分享功能
+quarkpan batch-share --help
 ```
 
 ## 🔐 登录认证详解
@@ -300,9 +336,14 @@ python -m quark_client.cli share save "https://pan.quark.cn/s/abc123" --password
 ### API 二维码登录（推荐）
 
 ```bash
+# 🎯 最简单：直接运行（自动引导登录）
+quarkpan
+
+# 或直接使用登录命令
+quarkpan auth login
+
+# 传统方式
 python -m quark_client.cli auth login
-# 或
-python cli.py auth login
 ```
 
 **工作流程：**
@@ -321,9 +362,11 @@ python cli.py auth login
 ### 手动 Cookie 登录
 
 ```bash  
+# 🎯 最简单
+quarkpan auth login --method simple
+
+# 传统方式
 python -m quark_client.cli auth login --method simple
-# 或
-python cli.py auth login --method simple
 ```
 
 **使用场景：**
@@ -340,17 +383,21 @@ python cli.py auth login --method simple
 ### 登录状态管理
 
 ```bash
+# 🎯 推荐：在交互模式中管理登录状态
+quarkpan
+
+# 或使用直接命令：
 # 检查当前登录状态
-python -m quark_client.cli auth status
+quarkpan auth status
 
 # 查看用户信息
-python -m quark_client.cli auth info  
+quarkpan auth info  
 
 # 刷新登录状态
-python -m quark_client.cli auth refresh
+quarkpan auth refresh
 
 # 退出登录
-python -m quark_client.cli auth logout
+quarkpan auth logout
 ```
 
 **Cookie 安全说明：**
