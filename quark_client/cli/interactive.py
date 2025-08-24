@@ -82,7 +82,7 @@ class InteractiveShell:
                 print_error("未登录，请先使用 'quarkpan auth login' 登录")
                 return
 
-            print_success("✅ 已登录夸克网盘")
+            print_success("已登录夸克网盘")
             print_info(f"当前位置: {self.current_folder_name}")
 
         except Exception as e:

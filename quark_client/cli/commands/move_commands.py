@@ -76,7 +76,7 @@ def move_files(
                 finish = data.get('finish', False)
 
                 if finish:
-                    print_success("✅ 文件移动完成!")
+                    print_success("文件移动完成!")
                 else:
                     print_success(f"✅ 文件移动完成! (任务ID: {task_id})")
 

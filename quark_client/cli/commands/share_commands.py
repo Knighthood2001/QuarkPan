@@ -69,7 +69,7 @@ def create_share(
             )
 
             if result:
-                print_success("✅ 分享创建成功!")
+                print_success("分享创建成功!")
 
                 # 显示分享信息
                 table = Table(title="分享信息")
