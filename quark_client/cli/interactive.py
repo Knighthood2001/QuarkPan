@@ -196,17 +196,44 @@ class InteractiveShell:
     def cmd_list(self, args: List[str]):
         """列出文件"""
         try:
-            # 模拟调用list命令
-            files = self.client.list_files(self.current_folder_id, size=50)  # type: ignore[attr-defined]
+            # 确定要列出的目录
+            target_folder_id = self.current_folder_id
+            target_folder_name = self.current_folder_name
+
+            # 如果提供了路径参数，解析路径
+            if args:
+                path = args[0]
+                from ..services.batch_share_service import BatchShareService
+                batch_service = BatchShareService(self.client.api_client)
+
+                resolved_folder_id = batch_service._resolve_path_to_folder_id(path)
+                if not resolved_folder_id:
+                    print_error(f"路径不存在: {path}")
+                    return
+
+                target_folder_id = resolved_folder_id
+                # 获取目标目录名称
+                if path == "/" or path == "":
+                    target_folder_name = "根目录"
+                else:
+                    # 从路径中提取目录名
+                    path_clean = path.strip('/')
+                    if path_clean:
+                        target_folder_name = path_clean.split('/')[-1]
+                    else:
+                        target_folder_name = "根目录"
+
+            # 列出目标目录的文件
+            files = self.client.list_files(target_folder_id, size=50)  # type: ignore[attr-defined]
             file_list = files.get('data', {}).get('list', [])
 
             if not file_list:
                 print_info("目录为空")
                 return
 
-            # 显示当前目录信息 - 使用友好显示名称
-            display_name = self._get_display_name(self.current_folder_name, max_length=50)
-            print_info(f"当前目录: {display_name}")
+            # 显示目录信息 - 使用友好显示名称
+            display_name = self._get_display_name(target_folder_name, max_length=50)
+            print_info(f"目录: {display_name}")
             print_info(f"共 {len(file_list)} 个项目\n")
 
             for i, file_info in enumerate(file_list, 1):
