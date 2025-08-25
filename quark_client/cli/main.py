@@ -30,7 +30,7 @@ from .commands.batch_share_commands import batch_share, list_structure
 from .commands.download import download_app
 from .commands.move_commands import move_files, move_to_folder
 from .commands.search import search_app
-from .commands.share_commands import create_share, list_my_shares, save_share
+from .commands.share_commands import create_share, list_my_shares, save_share, batch_save_shares
 from .interactive import start_interactive
 from .utils import format_file_size, format_timestamp, get_client, get_folder_name_by_id
 
@@ -210,11 +210,26 @@ def list_dirs(
 @app.command()
 def save(
     share_url: str = typer.Argument(..., help="分享链接"),
-    target_folder: str = typer.Option("/", "--folder", "-f", help="目标文件夹路径"),
-    create_folder: bool = typer.Option(True, "--create-folder/--no-create-folder", help="自动创建目标文件夹")
+    target_folder: str = typer.Option("/来自：分享/", "--folder", "-f", help="目标文件夹路径"),
+    create_folder: bool = typer.Option(True, "--create-folder/--no-create-folder", help="自动创建目标文件夹"),
+    save_all: bool = typer.Option(True, "--save-all/--no-save-all", help="是否保存全部文件"),
+    wait_completion: bool = typer.Option(True, "--wait/--no-wait", help="是否等待转存任务完成"),
+    timeout: int = typer.Option(60, "--timeout", "-t", help="转存任务超时时间（秒）")
 ):
     """转存分享文件"""
-    save_share(share_url, target_folder, create_folder)
+    save_share(share_url, target_folder, create_folder, save_all, wait_completion, timeout)
+
+
+@app.command()
+def batch_save(
+    share_urls: List[str] = typer.Argument(..., help="分享链接列表"),
+    target_folder: str = typer.Option("/来自：分享/", "--folder", "-f", help="目标文件夹路径"),
+    save_all: bool = typer.Option(True, "--save-all/--no-save-all", help="是否保存全部文件"),
+    wait_completion: bool = typer.Option(True, "--wait/--no-wait", help="是否等待转存任务完成"),
+    create_subfolder: bool = typer.Option(False, "--create-subfolder/--no-subfolder", help="为每个分享创建子文件夹")
+):
+    """批量转存分享链接"""
+    batch_save_shares(share_urls, target_folder, save_all, wait_completion, create_subfolder)
 
 
 @app.command()

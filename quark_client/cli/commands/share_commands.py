@@ -209,8 +209,11 @@ def list_my_shares(page: int = 1, size: int = 20):
 
 def save_share(
     share_url: str,
-    target_folder: str = "/",
-    create_folder: bool = True
+    target_folder: str = "/来自：分享/",
+    create_folder: bool = True,
+    save_all: bool = True,
+    wait_completion: bool = True,
+    timeout: int = 60
 ):
     """转存分享文件"""
     try:
@@ -244,11 +247,16 @@ def save_share(
                         raise typer.Exit(1)
 
             print_info("📥 开始转存...")
+            if wait_completion:
+                print_info("⏳ 等待转存任务完成...")
 
             result = client.save_shared_files(
                 share_url=share_url,
                 target_folder_id=target_folder_id,
-                target_folder_name=target_folder_name
+                target_folder_name=target_folder_name,
+                save_all=save_all,
+                wait_for_completion=wait_completion,
+                timeout=timeout
             )
 
             if result:
@@ -259,7 +267,7 @@ def save_share(
                 # 显示转存的文件信息
                 files = share_info.get('files', [])
                 if files and len(files) <= 10:  # 只显示前10个文件
-                    print_info("\n📁 转存的文件:")
+                    print_info("转存的文件:")
                     for file_info in files:
                         file_name = file_info.get('file_name', '未知文件')
                         file_size = file_info.get('size', 0)
@@ -274,6 +282,75 @@ def save_share(
 
     except Exception as e:
         handle_api_error(e, "转存分享")
+        raise typer.Exit(1)
+
+
+def batch_save_shares(
+    share_urls: List[str],
+    target_folder: str = "/来自：分享/",
+    save_all: bool = True,
+    wait_completion: bool = True,
+    create_subfolder: bool = False
+):
+    """批量转存分享链接"""
+    try:
+        with get_client() as client:
+            if not client.is_logged_in():
+                print_error("未登录，请先使用 quarkpan auth login 登录")
+                raise typer.Exit(1)
+
+            print_info(f"🔗 准备批量转存 {len(share_urls)} 个分享链接")
+
+            # 解析目标文件夹
+            target_folder_id = "0"  # 默认根目录
+            if target_folder != "/":
+                try:
+                    from ...services.name_resolver import NameResolver
+                    resolver = NameResolver(client.files)
+                    target_folder_id, _ = resolver.resolve_path(target_folder)
+                    print_info(f"目标文件夹: {target_folder} -> {target_folder_id}")
+                except Exception as e:
+                    print_error(f"无法解析目标文件夹路径 '{target_folder}': {e}")
+                    raise typer.Exit(1)
+
+            print_info("📥 开始批量转存...")
+            if wait_completion:
+                print_info("⏳ 等待所有转存任务完成...")
+
+            # 进度回调函数
+            def progress_callback(current, total, url, result):
+                if result.get('success'):
+                    print_success(f"[{current}/{total}] ✅ 转存成功: {url}")
+                else:
+                    print_error(f"[{current}/{total}] ❌ 转存失败: {url} - {result.get('error', '未知错误')}")
+
+            results = client.batch_save_shares(
+                share_urls=share_urls,
+                target_folder_id=target_folder_id,
+                create_subfolder=create_subfolder,
+                save_all=save_all,
+                wait_for_completion=wait_completion,
+                progress_callback=progress_callback
+            )
+
+            # 统计结果
+            success_count = sum(1 for r in results if r.get('success'))
+            failed_count = len(results) - success_count
+
+            print_info(f"\n📊 批量转存完成:")
+            print_success(f"✅ 成功: {success_count}")
+            if failed_count > 0:
+                print_error(f"❌ 失败: {failed_count}")
+
+            # 显示失败的链接
+            failed_urls = [r['url'] for r in results if not r.get('success')]
+            if failed_urls:
+                print_warning("\n失败的分享链接:")
+                for url in failed_urls:
+                    print_warning(f"  - {url}")
+
+    except Exception as e:
+        handle_api_error(e, "批量转存分享")
         raise typer.Exit(1)
 
 

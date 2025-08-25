@@ -95,6 +95,16 @@ def handle_api_error(e: Exception, operation: str = "操作"):
         print_error(f"{operation}失败: 网络连接错误")
     elif "not found" in error_msg.lower():
         print_error(f"{operation}失败: 文件或文件夹不存在")
+    elif "capacity limit" in error_msg.lower() or "容量不足" in error_msg:
+        print_error(f"{operation}失败: 网盘容量不足")
+        rprint("💡 解决方案:")
+        rprint("  1. 清理网盘中的无用文件")
+        rprint("  2. 删除回收站中的文件")
+        rprint("  3. 升级网盘容量")
+    elif "share expired" in error_msg.lower() or "分享过期" in error_msg:
+        print_error(f"{operation}失败: 分享链接已过期")
+    elif "share not found" in error_msg.lower() or "分享不存在" in error_msg:
+        print_error(f"{operation}失败: 分享链接无效或已被删除")
     else:
         print_error(f"{operation}失败: {error_msg}")
 

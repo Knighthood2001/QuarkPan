@@ -930,7 +930,7 @@ class InteractiveShell:
             return
 
         share_url = args[0]
-        target_folder = "/"
+        target_folder = "/来自：分享/"
         create_folder = True
 
         # 解析选项

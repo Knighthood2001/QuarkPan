@@ -171,7 +171,10 @@ class QuarkClient:
         self,
         share_urls: List[str],
         target_folder_id: str = "0",
-        create_subfolder: bool = True
+        create_subfolder: bool = False,
+        save_all: bool = True,
+        wait_for_completion: bool = True,
+        progress_callback: Optional[Callable] = None
     ) -> List[Dict[str, Any]]:
         """
         批量转存分享链接
@@ -180,39 +183,57 @@ class QuarkClient:
             share_urls: 分享链接列表
             target_folder_id: 目标文件夹ID
             create_subfolder: 是否为每个分享创建子文件夹
+            save_all: 是否保存全部文件
+            wait_for_completion: 是否等待转存任务完成
+            progress_callback: 进度回调函数
 
         Returns:
             转存结果列表
         """
-        results = []
-
-        for i, share_url in enumerate(share_urls):
-            try:
-                # 如果需要创建子文件夹，生成文件夹名
-                folder_name = None
-                if create_subfolder:
+        if create_subfolder:
+            # 使用原有逻辑，为每个分享创建子文件夹
+            results = []
+            for i, share_url in enumerate(share_urls):
+                try:
                     folder_name = f"分享_{i+1}"
+                    result = self.save_shared_files(
+                        share_url,
+                        target_folder_id,
+                        target_folder_name=folder_name,
+                        save_all=save_all,
+                        wait_for_completion=wait_for_completion
+                    )
 
-                result = self.save_shared_files(
-                    share_url,
-                    target_folder_id,
-                    target_folder_name=folder_name
-                )
+                    results.append({
+                        'success': True,
+                        'share_url': share_url,
+                        'result': result
+                    })
 
-                results.append({
-                    'success': True,
-                    'share_url': share_url,
-                    'result': result
-                })
+                    if progress_callback:
+                        progress_callback(i+1, len(share_urls), share_url, result)
 
-            except Exception as e:
-                results.append({
-                    'success': False,
-                    'share_url': share_url,
-                    'error': str(e)
-                })
+                except Exception as e:
+                    error_result = {
+                        'success': False,
+                        'share_url': share_url,
+                        'error': str(e)
+                    }
+                    results.append(error_result)
 
-        return results
+                    if progress_callback:
+                        progress_callback(i+1, len(share_urls), share_url, error_result)
+
+            return results
+        else:
+            # 使用新的批量转存功能
+            return self.shares.batch_save_shares(
+                share_urls=share_urls,
+                target_folder_id=target_folder_id,
+                save_all=save_all,
+                wait_for_completion=wait_for_completion,
+                progress_callback=progress_callback
+            )
 
     def sync_folder(
         self,
@@ -308,7 +329,10 @@ class QuarkClient:
         share_url: str,
         target_folder_id: str = "0",
         target_folder_name: Optional[str] = None,
-        file_filter: Optional[Callable] = None
+        file_filter: Optional[Callable] = None,
+        save_all: bool = True,
+        wait_for_completion: bool = True,
+        timeout: int = 60
     ) -> Dict[str, Any]:
         """
         转存分享的文件
@@ -318,11 +342,16 @@ class QuarkClient:
             target_folder_id: 目标文件夹ID
             target_folder_name: 目标文件夹名称
             file_filter: 文件过滤函数
+            save_all: 是否保存全部文件
+            wait_for_completion: 是否等待转存任务完成
 
         Returns:
             转存结果
         """
-        return self.shares.parse_and_save(share_url, target_folder_id, target_folder_name, file_filter)
+        return self.shares.parse_and_save(
+            share_url, target_folder_id, target_folder_name,
+            file_filter, save_all, wait_for_completion, timeout
+        )
 
     def get_my_shares(self, page: int = 1, size: int = 50) -> Dict[str, Any]:
         """

@@ -203,7 +203,8 @@ class ShareService:
         """
         data = {
             'pwd_id': share_id,
-            'passcode': password or ''
+            'passcode': password or '',
+            'support_visit_limit_private_share': True
         }
 
         # 使用分享专用的API基础URL
@@ -220,13 +221,14 @@ class ShareService:
 
         raise ShareLinkError("无法获取分享访问令牌")
 
-    def get_share_info(self, share_id: str, token: str) -> Dict[str, Any]:
+    def get_share_info(self, share_id: str, token: str, pdir_fid: str = "0") -> Dict[str, Any]:
         """
         获取分享详细信息
 
         Args:
             share_id: 分享ID
             token: 访问令牌
+            pdir_fid: 父目录ID，根目录为 "0"
 
         Returns:
             分享信息
@@ -234,9 +236,14 @@ class ShareService:
         params = {
             'pwd_id': share_id,
             'stoken': token,
+            'pdir_fid': pdir_fid,
+            'force': '0',
             '_page': 1,
             '_size': 50,
-            '_sort': 'file_name:asc'
+            '_fetch_banner': '1',
+            '_fetch_share': '1',
+            '_fetch_total': '1',
+            '_sort': 'file_type:asc,file_name:asc'
         }
 
         response = self.client.get(
@@ -253,7 +260,11 @@ class ShareService:
         token: str,
         file_ids: List[str],
         target_folder_id: str = "0",
-        target_folder_name: Optional[str] = None
+        target_folder_name: Optional[str] = None,
+        pdir_fid: str = "0",
+        save_all: bool = False,
+        wait_for_completion: bool = True,
+        timeout: int = 60
     ) -> Dict[str, Any]:
         """
         转存分享的文件
@@ -264,17 +275,22 @@ class ShareService:
             file_ids: 要转存的文件ID列表
             target_folder_id: 目标文件夹ID
             target_folder_name: 目标文件夹名称（如果需要创建新文件夹）
+            pdir_fid: 源目录ID，根目录为 "0"
+            save_all: 是否保存全部文件
+            wait_for_completion: 是否等待转存任务完成
 
         Returns:
             转存结果
         """
         data = {
             'fid_list': file_ids,
-            'fid_token_list': [{'fid': fid, 'token': token} for fid in file_ids],
+            'fid_token_list': [],
             'to_pdir_fid': target_folder_id,
             'pwd_id': share_id,
             'stoken': token,
-            'pdir_fid': "0",
+            'pdir_fid': pdir_fid,
+            'pdir_save_all': save_all,
+            'exclude_fids': [],
             'scene': 'link'
         }
 
@@ -288,14 +304,107 @@ class ShareService:
             base_url=Config.SHARE_BASE_URL
         )
 
+        if not response.get('status') == 200:
+            error_msg = f"转存失败: {response.get('message', '未知错误')}"
+            raise APIError(error_msg)
+
+        # 如果需要等待任务完成
+        if wait_for_completion:
+            task_id = response.get('data', {}).get('task_id')
+            if task_id:
+                # 等待转存任务完成
+                task_result = self._wait_for_save_task_completion(task_id, timeout)
+                response['task_result'] = task_result
+
         return response
+
+    def _wait_for_save_task_completion(self, task_id: str, timeout: int = 60) -> Dict[str, Any]:
+        """
+        等待转存任务完成
+
+        Args:
+            task_id: 任务ID
+            timeout: 超时时间（秒）
+
+        Returns:
+            任务完成结果
+        """
+        import time
+
+        start_time = time.time()
+        retry_index = 0
+        max_retries = timeout // 2  # 每2秒检查一次
+
+        while retry_index < max_retries and time.time() - start_time < timeout:
+            try:
+                task_response = self.client.get(
+                    'task',
+                    params={
+                        'task_id': task_id,
+                        'retry_index': retry_index
+                    }
+                )
+
+                if task_response.get('status') == 200:
+                    task_data = task_response.get('data', {})
+                    status = task_data.get('status')
+                    message = task_data.get('message', '')
+
+                    # 使用数字状态值，与 FileService 保持一致
+                    if status == 2:  # 任务完成
+                        return task_response
+                    elif status == 3:  # 任务失败
+                        error_msg = f"转存任务失败: {message or '任务失败'}"
+                        raise APIError(error_msg)
+                    elif status in [0, 1]:  # 0=PENDING, 1=RUNNING
+                        # 任务进行中，继续等待
+                        pass
+                    # 其他状态也继续等待
+
+                retry_index += 1
+                if retry_index < max_retries:
+                    time.sleep(2)
+
+            except Exception as e:
+                elapsed = time.time() - start_time
+                error_str = str(e)
+
+                # 检查是否是容量不足错误，如果是则立即停止重试
+                if "capacity limit" in error_str:
+                    raise APIError("转存失败: 网盘容量不足，请清理空间后重试")
+
+                # 检查其他不需要重试的错误
+                non_retry_errors = [
+                    "permission denied",
+                    "access denied",
+                    "forbidden",
+                    "unauthorized",
+                    "file not found",
+                    "share expired",
+                    "share not found"
+                ]
+
+                if any(err in error_str.lower() for err in non_retry_errors):
+                    raise APIError(f"转存失败: {error_str}")
+
+                if elapsed >= timeout - 5:  # 接近超时时抛出异常
+                    raise APIError(f"转存任务监控失败: {e}")
+
+                retry_index += 1
+                if retry_index < max_retries:
+                    time.sleep(2)
+
+        raise APIError(f"转存任务超时 (超过 {timeout} 秒)")
 
     def parse_and_save(
         self,
         share_url: str,
         target_folder_id: str = "0",
         target_folder_name: Optional[str] = None,
-        file_filter: Optional[Callable] = None
+        file_filter: Optional[Callable] = None,
+        save_all: bool = True,
+        wait_for_completion: bool = True,
+        timeout: int = 60
     ) -> Dict[str, Any]:
         """
         解析分享链接并转存文件（一站式服务）
@@ -305,6 +414,8 @@ class ShareService:
             target_folder_id: 目标文件夹ID
             target_folder_name: 目标文件夹名称
             file_filter: 文件过滤函数，接收文件信息字典，返回True表示转存
+            save_all: 是否保存全部文件
+            wait_for_completion: 是否等待转存任务完成
 
         Returns:
             转存结果
@@ -329,16 +440,21 @@ class ShareService:
         # 5. 应用文件过滤器
         if file_filter:
             files = [f for f in files if file_filter(f)]
+            save_all = False  # 如果有过滤器，不能使用 save_all
 
-        if not files:
-            raise ShareLinkError("没有符合条件的文件")
-
-        # 6. 提取文件ID
-        file_ids = [f['fid'] for f in files]
+        # 6. 提取文件ID（如果不是保存全部）
+        file_ids = [] if save_all else [f['fid'] for f in files]
 
         # 7. 转存文件
         result = self.save_shared_files(
-            share_id, token, file_ids, target_folder_id, target_folder_name
+            share_id=share_id,
+            token=token,
+            file_ids=file_ids,
+            target_folder_id=target_folder_id,
+            target_folder_name=target_folder_name,
+            save_all=save_all,
+            wait_for_completion=wait_for_completion,
+            timeout=timeout
         )
 
         # 8. 添加额外信息到结果中
@@ -350,7 +466,87 @@ class ShareService:
 
         return result
 
+    def batch_save_shares(
+        self,
+        share_urls: List[str],
+        target_folder_id: str = "0",
+        target_folder_name: Optional[str] = None,
+        save_all: bool = True,
+        wait_for_completion: bool = True,
+        progress_callback: Optional[Callable] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        批量转存分享链接
 
+        Args:
+            share_urls: 分享链接列表
+            target_folder_id: 目标文件夹ID
+            target_folder_name: 目标文件夹名称
+            save_all: 是否保存全部文件
+            wait_for_completion: 是否等待转存任务完成
+            progress_callback: 进度回调函数，接收 (current, total, url, result)
+
+        Returns:
+            转存结果列表
+        """
+        results = []
+        total = len(share_urls)
+
+        for i, share_url in enumerate(share_urls, 1):
+            try:
+                result = self.parse_and_save(
+                    share_url=share_url,
+                    target_folder_id=target_folder_id,
+                    target_folder_name=target_folder_name,
+                    save_all=save_all,
+                    wait_for_completion=wait_for_completion
+                )
+
+                result['success'] = True
+                result['url'] = share_url
+                results.append(result)
+
+                if progress_callback:
+                    progress_callback(i, total, share_url, result)
+
+            except Exception as e:
+                error_result = {
+                    'success': False,
+                    'url': share_url,
+                    'error': str(e),
+                    'error_type': type(e).__name__
+                }
+                results.append(error_result)
+
+                if progress_callback:
+                    progress_callback(i, total, share_url, error_result)
+
+        return results
+
+    def save_share_url(
+        self,
+        share_url: str,
+        target_folder_id: str = "0",
+        wait_for_completion: bool = True,
+        timeout: int = 60
+    ) -> Dict[str, Any]:
+        """
+        简化的分享链接转存方法
+
+        Args:
+            share_url: 分享链接
+            target_folder_id: 目标文件夹ID
+            wait_for_completion: 是否等待转存任务完成
+
+        Returns:
+            转存结果
+        """
+        return self.parse_and_save(
+            share_url=share_url,
+            target_folder_id=target_folder_id,
+            save_all=True,
+            wait_for_completion=wait_for_completion
+        )
 
     def delete_share(self, share_id: str) -> Dict[str, Any]:
         """

@@ -38,6 +38,8 @@
 - **分享管理**: 查看、编辑、删除自己的分享记录
 - **分享转存**: 将他人分享的资源一键转存到自己网盘
 - **链接解析**: 智能识别和解析各种格式的分享链接
+- **批量转存**: 支持批量转存多个分享链接到指定目录
+- **自动化转存**: 基于请求序列分析的高效转存实现
 
 ### 🖥️ 命令行工具
 - **交互式界面**: 提供类似文件管理器的交互式命令行界面  
@@ -325,7 +327,10 @@ quarkpan share create FILE_ID --title "分享标题" --password 1234
 quarkpan share list
 
 # 转存他人分享
-quarkpan share save "https://pan.quark.cn/s/abc123" --password 1234
+quarkpan save "https://pan.quark.cn/s/abc123" --folder "/目标文件夹" --save-all --wait
+
+# 批量转存分享链接
+quarkpan batch-save "https://pan.quark.cn/s/abc123" "https://pan.quark.cn/s/def456" --folder "/目标文件夹"
 
 # 批量分享功能
 quarkpan batch-share --help                               # 查看完整帮助
@@ -497,7 +502,24 @@ share_id, password = client.parse_share_url(
 # 转存分享文件
 result = client.save_shared_files(
     share_url="https://pan.quark.cn/s/abc123",
-    target_folder_id="0"
+    target_folder_id="0",
+    save_all=True,                    # 保存全部文件
+    wait_for_completion=True          # 等待转存完成
+)
+
+# 批量转存分享链接
+share_urls = [
+    "https://pan.quark.cn/s/abc123",
+    "https://pan.quark.cn/s/def456"
+]
+
+def progress_callback(current, total, url, result):
+    print(f"[{current}/{total}] 转存: {url}")
+
+results = client.batch_save_shares(
+    share_urls=share_urls,
+    target_folder_id="0",
+    progress_callback=progress_callback
 )
 
 # 获取我的分享列表
@@ -550,7 +572,8 @@ QuarkPan/
 │   ├── basic_usage.py       # 基础功能演示
 │   ├── file_operations_demo.py # 文件操作演示
 │   ├── file_browser_demo.py # 文件浏览器演示
-│   └── share_save_demo.py   # 分享转存演示
+│   ├── share_save_demo.py   # 分享转存演示
+│   └── enhanced_share_save_demo.py # 转存功能演示
 ├── config/                  # 配置文件目录
 │   ├── cookies.json         # 登录 Cookie 存储
 │   ├── login_result.json    # 登录结果缓存
@@ -611,14 +634,20 @@ python examples/file_browser_demo.py
 ```bash
 # 分享链接创建和转存功能
 python examples/share_save_demo.py
+
+# 转存功能演示
+python examples/enhanced_share_save_demo.py
 ```
 
 **功能演示：**
 - 🔗 创建文件分享链接（带密码和有效期）
-- 📋 管理个人分享列表  
+- 📋 管理个人分享列表
 - 💾 转存他人分享的资源
 - 🔍 分享链接格式解析
 - 📊 分享文件详情查看
+- 🚀 批量转存多个分享链接
+- ⏳ 转存任务状态监控
+- 🎯 文件过滤和高级选项
 
 ### 组合使用示例
 
