@@ -24,7 +24,7 @@ def create_folder(folder_name: str, parent_id: str = "0"):
             result = client.create_folder(folder_name, parent_id)
 
             if result and result.get('status') == 200:
-                print_success(f"✅ 文件夹创建成功: {folder_name}")
+                print_success(f"文件夹创建成功: {folder_name}")
 
                 # 显示创建的文件夹信息
                 if 'data' in result:
@@ -97,7 +97,7 @@ def delete_files(paths: List[str], force: bool = False, use_id: bool = False):
                 result = client.delete_files_by_name(paths)
 
             if result and result.get('status') == 200:
-                print_success(f"✅ 成功删除 {len(file_ids)} 个文件/文件夹")
+                print_success(f"成功删除 {len(file_ids)} 个文件/文件夹")
             else:
                 error_msg = result.get('message', '未知错误')
                 print_error(f"删除失败: {error_msg}")
@@ -147,7 +147,7 @@ def rename_file(path: str, new_name: str, use_id: bool = False):
             print_info("正在重命名...")
 
             if result and result.get('status') == 200:
-                print_success(f"✅ 重命名成功: {new_name}")
+                print_success(f"重命名成功: {new_name}")
             else:
                 error_msg = result.get('message', '未知错误')
                 print_error(f"重命名失败: {error_msg}")

@@ -78,7 +78,7 @@ def move_files(
                 if finish:
                     print_success("文件移动完成!")
                 else:
-                    print_success(f"✅ 文件移动完成! (任务ID: {task_id})")
+                    print_success(f"文件移动完成! (任务ID: {task_id})")
 
                 # 显示移动结果
                 print_info(f"\n📊 移动结果:")
@@ -151,7 +151,7 @@ def move_to_folder(
                     create_result = client.create_folder(folder_name, parent_folder_id)
                     if create_result and create_result.get('status') == 200:
                         target_folder_id = create_result.get('data', {}).get('fid')
-                        print_success(f"✅ 文件夹创建成功: {folder_name}")
+                        print_success(f"文件夹创建成功: {folder_name}")
                     else:
                         print_error(f"创建文件夹失败: {folder_name}")
                         raise typer.Exit(1)

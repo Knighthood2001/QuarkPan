@@ -133,7 +133,7 @@ def list_my_shares(page: int = 1, size: int = 20):
                     print_warning("暂无分享")
                     return
 
-                print_success(f"✅ 找到 {total} 个分享")
+                print_success(f"找到 {total} 个分享")
 
                 # 创建表格
                 table = Table(title=f"我的分享 (第{page}页，共{total}个)")
@@ -262,7 +262,7 @@ def save_share(
             if result:
                 share_info = result.get('share_info', {})
                 file_count = share_info.get('file_count', 0)
-                print_success(f"✅ 转存成功! 共转存 {file_count} 个文件")
+                print_success(f"转存成功! 共转存 {file_count} 个文件")
 
                 # 显示转存的文件信息
                 files = share_info.get('files', [])
@@ -338,7 +338,7 @@ def batch_save_shares(
             failed_count = len(results) - success_count
 
             print_info(f"\n📊 批量转存完成:")
-            print_success(f"✅ 成功: {success_count}")
+            print_success(f"成功: {success_count}")
             if failed_count > 0:
                 print_error(f"❌ 失败: {failed_count}")
 

@@ -58,7 +58,7 @@ def download_file(
             )
 
             print()  # 换行
-            print_success(f"✅ 文件下载成功: {downloaded_path}")
+            print_success(f"文件下载成功: {downloaded_path}")
 
             # 显示文件信息
             if os.path.exists(downloaded_path):
@@ -109,7 +109,7 @@ def download_files(
             )
 
             print()  # 换行
-            print_success(f"✅ 批量下载完成！成功下载 {len(downloaded_files)} 个文件")
+            print_success(f"批量下载完成！成功下载 {len(downloaded_files)} 个文件")
 
             # 显示下载的文件列表
             if downloaded_files:
@@ -209,7 +209,7 @@ def download_folder(
             # 开始递归下载
             downloaded_files = download_folder_recursive(folder_id, download_path)
 
-            print_success(f"✅ 文件夹下载完成！成功下载 {len(downloaded_files)} 个文件")
+            print_success(f"文件夹下载完成！成功下载 {len(downloaded_files)} 个文件")
             print_info(f"下载位置: {download_path}")
 
     except Exception as e:

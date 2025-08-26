@@ -390,7 +390,7 @@ class InteractiveShell:
             )
 
             print()  # 换行
-            print_success(f"✅ 下载完成: {downloaded_path}")
+            print_success(f"下载完成: {downloaded_path}")
 
         except Exception as e:
             print()  # 换行
@@ -408,7 +408,7 @@ class InteractiveShell:
             result = self.client.create_folder(folder_name, self.current_folder_id)  # type: ignore[attr-defined]
 
             if result and result.get('status') == 200:
-                print_success(f"✅ 文件夹创建成功: {folder_name}")
+                print_success(f"文件夹创建成功: {folder_name}")
             else:
                 error_msg = result.get('message', '未知错误')
                 print_error(f"创建文件夹失败: {error_msg}")
@@ -436,7 +436,7 @@ class InteractiveShell:
             result = self.client.delete_files_by_name(args, self.current_folder_id)  # type: ignore[attr-defined]
 
             if result and result.get('status') == 200:
-                print_success(f"✅ 成功删除 {len(args)} 个文件/文件夹")
+                print_success(f"成功删除 {len(args)} 个文件/文件夹")
             else:
                 error_msg = result.get('message', '未知错误')
                 print_error(f"删除失败: {error_msg}")
@@ -458,7 +458,7 @@ class InteractiveShell:
                 old_path, new_name, self.current_folder_id)
 
             if result and result.get('status') == 200:
-                print_success(f"✅ 重命名成功: {old_path} -> {new_name}")
+                print_success(f"重命名成功: {old_path} -> {new_name}")
             else:
                 error_msg = result.get('message', '未知错误')
                 print_error(f"重命名失败: {error_msg}")

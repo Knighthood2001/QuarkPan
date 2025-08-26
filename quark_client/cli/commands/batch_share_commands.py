@@ -78,7 +78,7 @@ def batch_share(
 
             # 显示目录结构预览
             item_type = "文件夹" if share_level == "folders" else ("文件" if share_level == "files" else "项目")
-            print_success(f"✅ 找到 {len(target_directories)} 个目标{item_type}")
+            print_success(f"找到 {len(target_directories)} 个目标{item_type}")
 
             # 创建目录预览表格
             table = Table(title=f"目标{item_type}预览")
@@ -178,7 +178,7 @@ def batch_share(
             successful = sum(1 for result in share_results if result['success'])
             failed = len(share_results) - successful
 
-            print_success(f"✅ 批量分享完成!")
+            print_success(f"批量分享完成!")
             print_info(f"   总计: {len(share_results)} 个目录")
             print_info(f"   成功: {successful} 个")
             if failed > 0:
@@ -256,7 +256,7 @@ def list_structure(
                         third = target_dir['third_level']
                         grouped[second][third].append(target_dir['name'])
 
-                    print_success(f"✅ 找到 {len(target_directories)} 个目标目录")
+                    print_success(f"找到 {len(target_directories)} 个目标目录")
 
                     for second_name, third_dirs in grouped.items():
                         print_info(f"\n📁 {second_name}/")
