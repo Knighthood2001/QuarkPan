@@ -222,14 +222,21 @@ def save(
 
 @app.command()
 def batch_save(
-    share_urls: List[str] = typer.Argument(..., help="分享链接列表"),
+    share_urls: List[str] = typer.Argument(default=None, help="分享链接列表"),
     target_folder: str = typer.Option("/来自：分享/", "--folder", "-f", help="目标文件夹路径"),
     save_all: bool = typer.Option(True, "--save-all/--no-save-all", help="是否保存全部文件"),
     wait_completion: bool = typer.Option(True, "--wait/--no-wait", help="是否等待转存任务完成"),
-    create_subfolder: bool = typer.Option(False, "--create-subfolder/--no-subfolder", help="为每个分享创建子文件夹")
+    create_subfolder: bool = typer.Option(False, "--create-subfolder/--no-subfolder", help="为每个分享创建子文件夹"),
+    from_file: Optional[str] = typer.Option(None, "--from", help="从文件中读取分享链接")
 ):
     """批量转存分享链接"""
-    batch_save_shares(share_urls, target_folder, save_all, wait_completion, create_subfolder)
+    # 如果没有提供链接且没有指定文件，显示帮助
+    if not share_urls and not from_file:
+        print("错误: 请提供分享链接或使用 --from 参数指定文件")
+        print("使用 'quarkpan batch-save --help' 查看帮助")
+        raise typer.Exit(1)
+
+    batch_save_shares(share_urls or [], target_folder, save_all, wait_completion, create_subfolder, from_file)
 
 
 @app.command()

@@ -2,14 +2,120 @@
 分享相关命令
 """
 
-from typing import List, Optional
+import os
+import re
+from typing import List, Optional, Set
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from ..utils import (get_client, handle_api_error, print_error, print_info,
-                     print_success, print_warning)
+from ..utils import get_client, handle_api_error, print_error, print_info, print_success, print_warning
+
+
+def extract_share_links_from_file(file_path: str) -> List[str]:
+    """
+    从文件中提取夸克网盘分享链接
+
+    Args:
+        file_path: 文件路径
+
+    Returns:
+        提取到的分享链接列表
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+
+    if not os.path.isfile(file_path):
+        raise ValueError(f"路径不是文件: {file_path}")
+
+    # 夸克网盘分享链接的正则表达式
+    quark_link_pattern = r'https://pan\.quark\.cn/s/[a-zA-Z0-9]+'
+
+    links = []
+
+    try:
+        # 尝试不同的编码格式读取文件
+        encodings = ['utf-8', 'gbk', 'gb2312', 'utf-16']
+        content = None
+
+        for encoding in encodings:
+            try:
+                with open(file_path, 'r', encoding=encoding) as f:
+                    content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if content is None:
+            raise ValueError(f"无法读取文件 {file_path}，不支持的编码格式")
+
+        # 使用正则表达式提取所有匹配的链接
+        matches = re.findall(quark_link_pattern, content)
+        links.extend(matches)
+
+    except Exception as e:
+        raise ValueError(f"读取文件失败: {e}")
+
+    return links
+
+
+def deduplicate_links(links: List[str]) -> List[str]:
+    """
+    去重分享链接并打印日志
+
+    Args:
+        links: 原始链接列表
+
+    Returns:
+        去重后的链接列表
+    """
+    if not links:
+        return []
+
+    original_count = len(links)
+    unique_links = list(dict.fromkeys(links))  # 保持顺序的去重
+    duplicate_count = original_count - len(unique_links)
+
+    if duplicate_count > 0:
+        print_info(f"发现 {duplicate_count} 个重复链接，已自动去重")
+
+    return unique_links
+
+
+def validate_share_links(links: List[str]) -> List[str]:
+    """
+    验证分享链接格式并过滤无效链接
+
+    Args:
+        links: 链接列表
+
+    Returns:
+        有效的链接列表
+    """
+    if not links:
+        return []
+
+    valid_links = []
+    invalid_count = 0
+
+    # 验证正则表达式 - 夸克网盘分享ID通常是8-16位字母数字组合
+    strict_pattern = r'^https://pan\.quark\.cn/s/[a-zA-Z0-9]{8,16}$'
+
+    for link in links:
+        # 清理链接（移除可能的参数和空白字符）
+        clean_link = link.strip().split('?')[0].split(' ')[0]
+
+        if re.match(strict_pattern, clean_link):
+            valid_links.append(clean_link)
+        else:
+            invalid_count += 1
+            print_warning(f"跳过无效链接: {link}")
+
+    if invalid_count > 0:
+        print_info(f"跳过了 {invalid_count} 个无效链接")
+
+    return valid_links
 
 
 def create_share(
@@ -290,13 +396,51 @@ def batch_save_shares(
     target_folder: str = "/来自：分享/",
     save_all: bool = True,
     wait_completion: bool = True,
-    create_subfolder: bool = False
+    create_subfolder: bool = False,
+    from_file: Optional[str] = None
 ):
     """批量转存分享链接"""
     try:
         with get_client() as client:
             if not client.is_logged_in():
                 print_error("未登录，请先使用 quarkpan auth login 登录")
+                raise typer.Exit(1)
+
+            # 如果指定了文件，从文件中提取链接
+            if from_file:
+                print_info(f"📄 读取文件: {from_file}")
+
+                try:
+                    # 提取链接
+                    extracted_links = extract_share_links_from_file(from_file)
+                    print_info(f"🔍 提取到 {len(extracted_links)} 个分享链接")
+
+                    if not extracted_links:
+                        print_warning("文件中未找到任何夸克网盘分享链接")
+                        raise typer.Exit(0)
+
+                    # 去重
+                    unique_links = deduplicate_links(extracted_links)
+
+                    # 验证链接格式
+                    valid_links = validate_share_links(unique_links)
+
+                    if not valid_links:
+                        print_error("没有找到有效的分享链接")
+                        raise typer.Exit(1)
+
+                    print_success(f"✅ 处理完成，共 {len(valid_links)} 个有效链接")
+                    share_urls = valid_links
+
+                except FileNotFoundError as e:
+                    print_error(str(e))
+                    raise typer.Exit(1)
+                except ValueError as e:
+                    print_error(str(e))
+                    raise typer.Exit(1)
+
+            elif not share_urls:
+                print_error("请提供分享链接或使用 --from 参数指定文件")
                 raise typer.Exit(1)
 
             print_info(f"🔗 准备批量转存 {len(share_urls)} 个分享链接")
