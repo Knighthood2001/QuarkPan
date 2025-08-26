@@ -333,7 +333,7 @@ class ShareService:
 
         start_time = time.time()
         retry_index = 0
-        max_retries = timeout // 2  # 每2秒检查一次
+        max_retries = timeout // 1  # 每1秒检查一次
 
         while retry_index < max_retries and time.time() - start_time < timeout:
             try:
@@ -363,7 +363,7 @@ class ShareService:
 
                 retry_index += 1
                 if retry_index < max_retries:
-                    time.sleep(2)
+                    time.sleep(1)
 
             except Exception as e:
                 elapsed = time.time() - start_time
@@ -392,7 +392,7 @@ class ShareService:
 
                 retry_index += 1
                 if retry_index < max_retries:
-                    time.sleep(2)
+                    time.sleep(1)
 
         raise APIError(f"转存任务超时 (超过 {timeout} 秒)")
 
