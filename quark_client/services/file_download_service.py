@@ -32,16 +32,25 @@ class FileDownloadService:
         Returns:
             下载链接
         """
-        # 添加必要的查询参数
+        # 使用与 reference.py 完全相同的参数
         params = {
             'pr': 'ucpro',
             'fr': 'pc',
-            'uc_param_str': ''
+            'sys': 'win32',
+            've': '2.5.56',
+            'ut': '',
+            'guid': '',
         }
 
         data = {'fids': [file_id]}
 
-        response = self.client.post('file/download', json_data=data, params=params)
+        # 使用完整的API端点URL，绕过基础URL拼接
+        response = self.client.post(
+            'file/download',
+            json_data=data,
+            params=params,
+            base_url='https://drive-pc.quark.cn/1/clouddrive'
+        )
 
         # 解析下载链接
         if isinstance(response, dict) and 'data' in response:
@@ -106,15 +115,25 @@ class FileDownloadService:
         """
 
         # 获取下载链接和文件信息
+        # 使用与 reference.py 完全相同的参数
         params = {
             'pr': 'ucpro',
             'fr': 'pc',
-            'uc_param_str': ''
+            'sys': 'win32',
+            've': '2.5.56',
+            'ut': '',
+            'guid': '',
         }
 
         data = {'fids': [file_id]}
 
-        response = self.client.post('file/download', json_data=data, params=params)
+        # 使用完整的API端点URL，绕过基础URL拼接
+        response = self.client.post(
+            'file/download',
+            json_data=data,
+            params=params,
+            base_url='https://drive-pc.quark.cn/1/clouddrive'
+        )
 
         # 解析下载链接和文件信息
         if isinstance(response, dict) and 'data' in response:

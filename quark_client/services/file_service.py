@@ -3,7 +3,8 @@
 文件管理服务
 """
 
-from typing import Any, Dict, List, Optional
+import os
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..core.api_client import QuarkAPIClient
 from ..exceptions import APIError, FileNotFoundError
@@ -469,3 +470,423 @@ class FileService:
                 time.sleep(poll_interval / 1000)
 
         raise APIError("移动任务超时")
+
+    def resolve_path(self, path: str, current_dir_id: str = "0") -> Tuple[str, bool]:
+        """
+        解析文件路径，返回文件ID和是否为文件夹
+
+        Args:
+            path: 文件路径，如 "/L2-2/L23-1/民间秘术绝招大观.pdf" 或 "/L2-2/L23-1/"
+            current_dir_id: 当前目录ID，默认为根目录
+
+        Returns:
+            (file_id, is_directory) 元组
+
+        Raises:
+            FileNotFoundError: 文件或路径不存在
+        """
+        # 标准化路径
+        path = path.strip()
+        if not path:
+            return current_dir_id, True
+
+        # 处理根目录
+        if path == "/":
+            return "0", True
+
+        # 移除开头的斜杠并分割路径
+        if path.startswith("/"):
+            path = path[1:]
+            current_dir_id = "0"  # 绝对路径从根目录开始
+
+        if path.endswith("/"):
+            path = path[:-1]
+            is_target_dir = True  # 明确指定为目录
+        else:
+            is_target_dir = False  # 可能是文件或目录
+
+        if not path:
+            return current_dir_id, True
+
+        path_parts = path.split("/")
+
+        # 逐级查找路径
+        for i, part in enumerate(path_parts):
+            is_last_part = (i == len(path_parts) - 1)
+
+            # 获取当前目录的文件列表
+            response = self.list_files(current_dir_id)
+            if response.get('status') != 200:
+                raise FileNotFoundError(f"无法访问目录: {'/'.join(path_parts[:i+1])}")
+
+            files_data = response.get('data', {})
+            files_list = files_data.get('list', [])
+
+            # 查找匹配的文件或文件夹
+            found = False
+            for file_info in files_list:
+                if file_info['file_name'] == part:
+                    found = True
+                    current_dir_id = file_info['fid']
+
+                    if is_last_part:
+                        # 最后一个部分，确定是文件还是目录
+                        if is_target_dir:
+                            # 明确指定为目录（路径以/结尾）
+                            if not file_info.get('dir', False):
+                                raise FileNotFoundError(f"路径 '{path}' 指向的是文件，不是目录")
+                            return current_dir_id, True
+                        else:
+                            # 可能是文件或目录
+                            return current_dir_id, file_info.get('dir', False)
+                    else:
+                        # 中间路径，必须是目录
+                        if not file_info.get('dir', False):
+                            raise FileNotFoundError(f"路径 '{'/'.join(path_parts[:i+1])}' 不是目录")
+                    break
+
+            if not found:
+                raise FileNotFoundError(f"路径不存在: {'/'.join(path_parts[:i+1])}")
+
+        return current_dir_id, True
+
+    def find_files_by_pattern(self, pattern: str, dir_id: str = "0") -> List[Dict[str, Any]]:
+        """
+        在指定目录中查找匹配模式的文件
+
+        Args:
+            pattern: 文件名模式（支持通配符）
+            dir_id: 搜索的目录ID
+
+        Returns:
+            匹配的文件列表
+        """
+        import fnmatch
+
+        response = self.list_files(dir_id)
+        if response.get('status') != 200:
+            return []
+
+        files_data = response.get('data', {})
+        files_list = files_data.get('list', [])
+
+        matched_files = []
+        for file_info in files_list:
+            if fnmatch.fnmatch(file_info['file_name'], pattern):
+                matched_files.append(file_info)
+
+        return matched_files
+
+    def get_download_urls(self, file_ids: List[str]) -> Dict[str, Any]:
+        """
+        获取文件下载链接
+
+        Args:
+            file_ids: 文件ID列表
+
+        Returns:
+            包含下载链接的响应数据
+        """
+        data = {'fids': file_ids}
+
+        params = {
+            'pr': 'ucpro',
+            'fr': 'pc',
+            'sys': 'win32',
+            've': '2.5.56',
+            'ut': '',
+            'guid': '',
+        }
+
+        # 使用正确的 API 端点
+        response = self.client.post(
+            'file/download',
+            json_data=data,
+            params=params
+        )
+
+        return response
+
+    def _generate_safe_filename(self, filepath: str) -> str:
+        """
+        生成安全的文件名，处理文件冲突
+
+        Args:
+            filepath: 原始文件路径
+
+        Returns:
+            安全的文件路径
+        """
+        if not os.path.exists(filepath):
+            return filepath
+
+        # 分离文件名和扩展名
+        dir_path = os.path.dirname(filepath)
+        filename = os.path.basename(filepath)
+
+        if '.' in filename:
+            name, ext = os.path.splitext(filename)
+        else:
+            name, ext = filename, ''
+
+        # 自动递增文件名
+        counter = 1
+        while True:
+            new_filename = f"{name}{counter}{ext}"
+            new_filepath = os.path.join(dir_path, new_filename)
+            if not os.path.exists(new_filepath):
+                return new_filepath
+            counter += 1
+
+    def _build_folder_path_map(self, files_data: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        构建文件夹路径映射
+
+        Args:
+            files_data: 文件数据列表
+
+        Returns:
+            文件夹ID到路径的映射
+        """
+        folder_map = {}
+
+        for file_info in files_data:
+            if file_info.get('dir'):
+                fid = file_info['fid']
+                pdir_fid = file_info.get('pdir_fid', '0')
+                file_name = file_info['file_name']
+
+                # 构建完整路径
+                if pdir_fid == '0' or pdir_fid not in folder_map:
+                    folder_map[fid] = file_name
+                else:
+                    parent_path = folder_map[pdir_fid]
+                    folder_map[fid] = os.path.join(parent_path, file_name)
+
+        return folder_map
+
+    def download_file(self, file_path: str, save_dir: str = ".", progress_callback=None) -> str:
+        """
+        下载单个文件（支持路径）
+
+        Args:
+            file_path: 文件路径或文件ID
+            save_dir: 保存目录
+            progress_callback: 进度回调函数
+
+        Returns:
+            下载后的本地文件路径
+        """
+        # 解析路径获取文件ID
+        if len(file_path) == 32 and file_path.isalnum():
+            # 看起来是文件ID
+            file_id = file_path
+            # 获取文件信息
+            file_info = self.get_file_info(file_id)
+            if not file_info:
+                raise FileNotFoundError(f"文件ID不存在: {file_id}")
+            filename = file_info.get('file_name', 'unknown')
+        else:
+            # 路径格式
+            file_id, is_dir = self.resolve_path(file_path)
+            if is_dir:
+                raise APIError(f"路径指向目录，请使用 download_folder 方法: {file_path}")
+
+            # 获取文件信息
+            file_info = self.get_file_info(file_id)
+            if not file_info:
+                raise FileNotFoundError(f"文件不存在: {file_path}")
+            filename = file_info['file_name']
+
+        # 获取下载链接
+        download_response = self.get_download_urls([file_id])
+        if download_response.get('status') != 200:
+            raise APIError(f"获取下载链接失败: {download_response.get('message', '未知错误')}")
+
+        download_data = download_response.get('data', [])
+        if not download_data:
+            raise APIError("未获取到下载链接")
+
+        file_data = download_data[0]
+        download_url = file_data.get('download_url')
+        if not download_url:
+            raise APIError("下载链接为空")
+
+        # 准备保存路径
+        os.makedirs(save_dir, exist_ok=True)
+        save_path = os.path.join(save_dir, filename)
+        safe_save_path = self._generate_safe_filename(save_path)
+
+        # 下载文件
+        self._download_file_stream(download_url, safe_save_path, progress_callback)
+
+        return safe_save_path
+
+    def download_folder(self, folder_path: str, save_dir: str = ".", progress_callback=None) -> str:
+        """
+        下载文件夹（递归下载所有内容）
+
+        Args:
+            folder_path: 文件夹路径或文件夹ID
+            save_dir: 保存目录
+            progress_callback: 进度回调函数
+
+        Returns:
+            下载后的本地文件夹路径
+        """
+        # 解析路径获取文件夹ID
+        if len(folder_path) == 32 and folder_path.isalnum():
+            # 看起来是文件夹ID
+            folder_id = folder_path
+            # 获取文件夹信息
+            folder_info = self.get_file_info(folder_id)
+            if not folder_info:
+                raise FileNotFoundError(f"文件夹ID不存在: {folder_id}")
+            folder_name = folder_info.get('file_name', 'unknown')
+        else:
+            # 路径格式
+            folder_id, is_dir = self.resolve_path(folder_path)
+            if not is_dir:
+                raise APIError(f"路径指向文件，请使用 download_file 方法: {folder_path}")
+
+            # 获取文件夹信息
+            folder_info = self.get_file_info(folder_id)
+            if not folder_info:
+                raise FileNotFoundError(f"文件夹不存在: {folder_path}")
+            folder_name = folder_info['file_name']
+
+        # 创建本地文件夹
+        local_folder_path = os.path.join(save_dir, folder_name)
+        os.makedirs(local_folder_path, exist_ok=True)
+
+        # 递归下载文件夹内容
+        self._download_folder_recursive(folder_id, local_folder_path, progress_callback)
+
+        return local_folder_path
+
+    def _download_folder_recursive(self, folder_id: str, local_path: str, progress_callback=None):
+        """
+        递归下载文件夹内容
+
+        Args:
+            folder_id: 文件夹ID
+            local_path: 本地保存路径
+            progress_callback: 进度回调函数
+        """
+        # 获取文件夹内容
+        response = self.list_files(folder_id)
+        if response.get('status') != 200:
+            if progress_callback:
+                progress_callback('error', f"无法访问文件夹: {folder_id}")
+            return
+
+        files_data = response.get('data', {})
+        files_list = files_data.get('list', [])
+
+        if not files_list:
+            return
+
+        # 分离文件和文件夹
+        files = [f for f in files_list if not f.get('dir', False)]
+        folders = [f for f in files_list if f.get('dir', False)]
+
+        # 下载文件
+        if files:
+            file_ids = [f['fid'] for f in files]
+
+            # 获取下载链接
+            download_response = self.get_download_urls(file_ids)
+            if download_response.get('status') == 200:
+                download_data = download_response.get('data', [])
+
+                for file_data in download_data:
+                    filename = file_data.get('file_name', 'unknown')
+                    download_url = file_data.get('download_url')
+
+                    if download_url:
+                        file_save_path = os.path.join(local_path, filename)
+                        safe_file_path = self._generate_safe_filename(file_save_path)
+
+                        try:
+                            self._download_file_stream(download_url, safe_file_path, progress_callback)
+                            if progress_callback:
+                                progress_callback('file_complete', safe_file_path)
+                        except Exception as e:
+                            if progress_callback:
+                                progress_callback('error', f"下载文件失败 {filename}: {e}")
+
+        # 递归处理子文件夹
+        for folder in folders:
+            folder_name = folder['file_name']
+            folder_id = folder['fid']
+
+            # 创建子文件夹
+            sub_folder_path = os.path.join(local_path, folder_name)
+            os.makedirs(sub_folder_path, exist_ok=True)
+
+            if progress_callback:
+                progress_callback('folder_start', sub_folder_path)
+
+            # 递归下载
+            self._download_folder_recursive(folder_id, sub_folder_path, progress_callback)
+
+    def _download_file_stream(self, download_url: str, save_path: str, progress_callback=None):
+        """
+        流式下载文件
+
+        Args:
+            download_url: 下载链接
+            save_path: 保存路径
+            progress_callback: 进度回调函数
+        """
+        import requests
+        from tqdm import tqdm
+
+        # 使用与 reference.py 完全相同的请求头和格式
+        headers = {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko)'
+                          ' Chrome/94.0.4606.71 Safari/537.36 Core/1.94.225.400 QQBrowser/12.2.5544.400',
+            'origin': 'https://pan.quark.cn',
+            'referer': 'https://pan.quark.cn/',
+            'accept-language': 'zh-CN,zh;q=0.9',
+            'cookie': self.client.cookies,  # 直接设置 cookie 头部
+        }
+
+        try:
+            response = requests.get(download_url, headers=headers, stream=True, timeout=30)
+            response.raise_for_status()
+
+            # 获取文件大小
+            total_size = int(response.headers.get('content-length', 0))
+            filename = os.path.basename(save_path)
+
+            # 创建进度条
+            with tqdm(
+                total=total_size,
+                unit='B',
+                unit_scale=True,
+                desc=filename,
+                ncols=80
+            ) as pbar:
+
+                with open(save_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            pbar.update(len(chunk))
+
+                            if progress_callback:
+                                progress_callback('progress', {
+                                    'filename': filename,
+                                    'downloaded': pbar.n,
+                                    'total': total_size,
+                                    'percentage': (pbar.n / total_size * 100) if total_size > 0 else 0
+                                })
+
+            if progress_callback:
+                progress_callback('complete', save_path)
+
+        except Exception as e:
+            if os.path.exists(save_path):
+                os.remove(save_path)  # 清理不完整的文件
+            raise APIError(f"下载失败: {e}")
