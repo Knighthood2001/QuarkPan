@@ -22,6 +22,56 @@ class ShareService:
         """
         self.client = client
 
+    def check_existing_shares(self, file_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        检查文件是否已经分享过
+
+        Args:
+            file_ids: 要检查的文件ID列表
+
+        Returns:
+            字典，key为文件ID，value为分享信息（如果已分享）
+        """
+        if not file_ids:
+            return {}
+
+        existing_shares = {}
+
+        try:
+            # 获取所有分享列表
+            shares_response = self.get_my_shares(page=1, size=100)  # 获取更多分享
+
+            if shares_response.get('status') != 200:
+                # 如果获取分享列表失败，返回空字典，不影响正常分享流程
+                return {}
+
+            shares_data = shares_response.get('data', {})
+            shares_list = shares_data.get('list', [])
+
+            # 构建文件ID到分享信息的映射
+            for share in shares_list:
+                # 只考虑有效的分享（未过期、状态正常）
+                if share.get('status') != 1:  # 1表示正常状态
+                    continue
+
+                # 获取分享中的文件ID
+                share_fid = share.get('first_fid')
+                if share_fid and share_fid in file_ids:
+                    existing_shares[share_fid] = {
+                        'share_id': share.get('share_id'),
+                        'share_url': share.get('share_url'),
+                        'title': share.get('title', ''),
+                        'created_at': share.get('created_at'),
+                        'expired_at': share.get('expired_at'),
+                        'file_num': share.get('file_num', 1)
+                    }
+
+        except Exception:
+            # 如果检查过程出错，返回空字典，不影响正常分享流程
+            pass
+
+        return existing_shares
+
     def create_share(
         self,
         file_ids: List[str],
@@ -48,8 +98,14 @@ class ShareService:
             'fid_list': file_ids,
             'title': title,
             'url_type': 1,  # 公开链接
-            'expired_type': 1 if expire_days == 0 else 0  # 1=永久，0=有期限
+            'expired_type': 1 if expire_days == 0 else 2  # 1=永久，2=有期限
         }
+
+        # 如果设置了过期时间，添加过期时间字段
+        if expire_days > 0:
+            import time
+            expired_at = int((time.time() + expire_days * 24 * 3600) * 1000)  # 毫秒时间戳
+            data['expired_at'] = expired_at
 
         # 如果设置了密码，添加密码字段
         if password:
@@ -562,3 +618,124 @@ class ShareService:
 
         response = self.client.post('share/delete', json_data=data)
         return response
+
+    def smart_batch_create_shares(
+        self,
+        file_ids: List[str],
+        title: str = "",
+        expire_days: int = 0,
+        password: Optional[str] = None,
+        check_duplicates: bool = True,
+        progress_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """
+        智能批量创建分享链接（自动检查重复）
+
+        Args:
+            file_ids: 文件ID列表
+            title: 分享标题
+            expire_days: 过期天数，0表示永久
+            password: 分享密码
+            check_duplicates: 是否检查重复分享
+            progress_callback: 进度回调函数
+
+        Returns:
+            批量分享结果
+        """
+        if not file_ids:
+            return {
+                'status': 400,
+                'message': '文件列表不能为空',
+                'data': {
+                    'total': 0,
+                    'new_created': 0,
+                    'reused': 0,
+                    'failed': 0,
+                    'results': []
+                }
+            }
+
+        results = []
+        new_created = 0
+        reused = 0
+        failed = 0
+
+        # 检查已有分享
+        existing_shares = {}
+        if check_duplicates:
+            existing_shares = self.check_existing_shares(file_ids)
+
+        total = len(file_ids)
+
+        for i, file_id in enumerate(file_ids):
+            try:
+                # 检查是否已经分享过
+                if file_id in existing_shares:
+                    # 复用现有分享
+                    share_info = existing_shares[file_id]
+                    result = {
+                        'file_id': file_id,
+                        'status': 'reused',
+                        'share_url': share_info['share_url'],
+                        'share_id': share_info['share_id'],
+                        'title': share_info['title'],
+                        'message': '复用现有分享'
+                    }
+                    reused += 1
+                else:
+                    # 创建新分享
+                    share_response = self.create_share(
+                        file_ids=[file_id],
+                        title=title,
+                        expire_days=expire_days,
+                        password=password
+                    )
+
+                    # 检查是否有分享链接，表示分享成功
+                    if share_response.get('share_url'):
+                        result = {
+                            'file_id': file_id,
+                            'status': 'created',
+                            'share_url': share_response.get('share_url'),
+                            'share_id': share_response.get('pwd_id'),  # 分享ID字段名
+                            'title': share_response.get('title', title),
+                            'message': '创建新分享成功'
+                        }
+                        new_created += 1
+                    else:
+                        result = {
+                            'file_id': file_id,
+                            'status': 'failed',
+                            'message': '创建分享失败: 未获取到分享链接'
+                        }
+                        failed += 1
+
+                results.append(result)
+
+                # 调用进度回调
+                if progress_callback:
+                    progress_callback(i + 1, total, file_id, result)
+
+            except Exception as e:
+                result = {
+                    'file_id': file_id,
+                    'status': 'failed',
+                    'message': f'处理失败: {str(e)}'
+                }
+                results.append(result)
+                failed += 1
+
+                if progress_callback:
+                    progress_callback(i + 1, total, file_id, result)
+
+        return {
+            'status': 200,
+            'message': f'批量分享完成: 新建 {new_created}, 复用 {reused}, 失败 {failed}',
+            'data': {
+                'total': total,
+                'new_created': new_created,
+                'reused': reused,
+                'failed': failed,
+                'results': results
+            }
+        }

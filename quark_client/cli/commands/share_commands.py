@@ -123,7 +123,9 @@ def create_share(
     title: str = "",
     expire_days: int = 0,
     password: Optional[str] = None,
-    use_id: bool = False
+    use_id: bool = False,
+    check_duplicates: bool = True,
+    force_new: bool = False
 ):
     """创建分享链接"""
     console = Console()
@@ -166,48 +168,72 @@ def create_share(
             else:
                 print_info("   提取码: 无")
 
+            # 使用智能批量分享功能
+            def progress_callback(current, total, file_id, result):
+                status_icon = {
+                    'created': '🆕',
+                    'reused': '✅',
+                    'failed': '❌'
+                }.get(result['status'], '❓')
+
+                status_text = {
+                    'created': '创建新分享',
+                    'reused': '复用现有分享',
+                    'failed': '分享失败'
+                }.get(result['status'], '未知状态')
+
+                print_info(f"[{current}/{total}] {status_icon} {status_text}: {file_id}")
+                if result.get('share_url'):
+                    print_info(f"    链接: {result['share_url']}")
+                if result.get('message'):
+                    if result['status'] == 'failed':
+                        print_warning(f"    {result['message']}")
+                    else:
+                        print_info(f"    {result['message']}")
+
             # 创建分享
-            result = client.create_share(
+            result = client.shares.smart_batch_create_shares(
                 file_ids=file_ids,
                 title=title,
                 expire_days=expire_days,
-                password=password
+                password=password,
+                check_duplicates=check_duplicates and not force_new,
+                progress_callback=progress_callback
             )
 
-            if result:
-                print_success("分享创建成功!")
+            if result.get('status') == 200:
+                data = result.get('data', {})
+                total = data.get('total', 0)
+                new_created = data.get('new_created', 0)
+                reused = data.get('reused', 0)
+                failed = data.get('failed', 0)
 
-                # 显示分享信息
-                table = Table(title="分享信息")
-                table.add_column("属性", style="cyan")
-                table.add_column("值", style="green")
+                print_success(f"批量分享完成!")
+                print_info(f"📊 统计: 总计 {total}, 新建 {new_created}, 复用 {reused}, 失败 {failed}")
 
-                table.add_row("分享链接", result.get('share_url', 'N/A'))
-                table.add_row("分享ID", result.get('pwd_id', 'N/A'))
-                table.add_row("标题", result.get('title', 'N/A'))
-                table.add_row("文件数量", str(result.get('file_num', 0)))
+                # 显示成功的分享信息
+                successful_results = [r for r in data.get('results', []) if r['status'] in ['created', 'reused']]
 
-                if result.get('expired_type') == 1:
-                    table.add_row("有效期", "永久")
-                else:
-                    expired_at = result.get('expired_at', 0)
-                    if expired_at:
-                        import datetime
-                        expire_date = datetime.datetime.fromtimestamp(expired_at / 1000)
-                        table.add_row("有效期", expire_date.strftime('%Y-%m-%d %H:%M:%S'))
+                if successful_results:
+                    table = Table(title="分享结果")
+                    table.add_column("状态", style="cyan")
+                    table.add_column("分享链接", style="green")
+                    table.add_column("标题", style="yellow")
 
-                console.print(table)
+                    for share_result in successful_results:
+                        status_text = "🆕 新建" if share_result['status'] == 'created' else "✅ 复用"
+                        table.add_row(
+                            status_text,
+                            share_result.get('share_url', 'N/A'),
+                            share_result.get('title', 'N/A')
+                        )
 
-                # 显示复制友好的格式
-                share_url = result.get('share_url', '')
-                if password:
-                    print_info(f"\n📋 复制分享信息:")
-                    print_info(f"链接: {share_url}")
-                    print_info(f"提取码: {password}")
-                else:
-                    print_info(f"\n📋 分享链接: {share_url}")
+                    console.print(table)
+
+                if failed > 0:
+                    print_warning(f"有 {failed} 个文件分享失败，请检查文件是否存在或权限是否正确")
             else:
-                print_error("分享创建失败")
+                print_error(f"批量分享失败: {result.get('message', '未知错误')}")
                 raise typer.Exit(1)
 
     except Exception as e:

@@ -157,10 +157,20 @@ def share(
     title: str = typer.Option("", "--title", "-t", help="分享标题"),
     expire_days: int = typer.Option(0, "--expire", "-e", help="过期天数，0表示永久"),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="提取码"),
-    use_id: bool = typer.Option(False, "--use-id", help="使用文件ID而不是路径")
+    use_id: bool = typer.Option(False, "--use-id", help="使用文件ID而不是路径"),
+    no_check: bool = typer.Option(False, "--no-check", help="不检查重复分享，强制创建新分享"),
+    force_new: bool = typer.Option(False, "--force-new", help="强制创建新分享（等同于--no-check）")
 ):
     """创建分享链接"""
-    create_share(file_paths, title, expire_days, password, use_id)
+    create_share(
+        file_paths,
+        title,
+        expire_days,
+        password,
+        use_id,
+        check_duplicates=not (no_check or force_new),
+        force_new=force_new or no_check
+    )
 
 
 @app.command()
