@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quarkpan"
-version = "1.0.3"
+version = "1.0.4"
 description = "夸克网盘 Python 客户端和命令行工具"
 readme = "README.md"
 license = "MIT"
